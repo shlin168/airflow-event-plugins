@@ -1,0 +1,5 @@
+[run]
+omit =
+    */__init__.py
+    test_plugins/*
+    plugins/event_plugins/plugins.py
