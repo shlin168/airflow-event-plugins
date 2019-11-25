@@ -48,6 +48,6 @@ __pycache__
 .cache
 .coverage
 
-# test db
+# test data
 ################
-*.db
+test_plugins/test_data/*

@@ -54,12 +54,12 @@ def TestMsg(name, dt):
     if name == 'a':
         msg = FakeKafkaMsg(
                 topic='etl-finish',
-                value={'db': 'db0', 'table': 'table0', 'partition_values': ['']})
+                value={'db': 'db0', 'table': 'table0', 'partition_values': ''})
         msg.v.update({'exec_date': ts})
     elif name == 'b':
         msg = FakeKafkaMsg(
                 topic='etl-finish',
-                value={'db': 'db1', 'table': 'table1', 'partition_values': ['201907']})
+                value={'db': 'db1', 'table': 'table1', 'partition_values': '201907'})
         msg.v.update({'exec_date': ts})
     elif name == 'c':
         msg = FakeKafkaMsg(

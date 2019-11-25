@@ -8,7 +8,7 @@
 `airflow`<br/>
 `croniter`<br/>
 `python-dateutil`<br/>
-`confluent-kafka==0.11.6`<br/>
+`confluent-kafka`<br/>
 `jinja`<br>
 `sqlalchemy`<br>
 
@@ -125,7 +125,9 @@ send_email = KafkaStatusEmailOperator(
 ```
 
 ### TODO
-* kafka plugin test, integration test
+* move usage of each plugin to corresponding folder
+* add kafka integration test with DAG
+* add images for detailed introduction
 
 ### How to run test
 > test requires: <br/>

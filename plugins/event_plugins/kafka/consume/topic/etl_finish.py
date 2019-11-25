@@ -50,12 +50,7 @@ class ETLMatch:
 
     @staticmethod
     def match_by_rkeys(msg, wanted_msg, match_keys):
-        '''
-            weird match in render key, since rendered (key, value) from etl-finish topic is like
-            {'partition_values': ['201907'], ...}
-            but the value list only contains one item
-        '''
-        return all([msg.get(key)[0] == wanted_msg.get(key) for key in match_keys])
+        return all([msg.get(key) == wanted_msg.get(key) for key in match_keys])
 
     @staticmethod
     def match_by_tkey(msg_dt, wanted_dt):
