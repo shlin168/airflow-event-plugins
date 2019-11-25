@@ -3,7 +3,7 @@ from tabulate import tabulate
 from airflow.utils.decorators import apply_defaults
 
 from event_plugins.base.base_email_plugin import BaseStatusEmailOperator
-from event_plugins.kafka.message.topic import topic_map, topic_factory
+from event_plugins.kafka.comsume.topic import topic_map, topic_factory
 
 
 class KafkaStatusEmailOperator(BaseStatusEmailOperator):
@@ -37,7 +37,7 @@ class KafkaStatusEmailOperator(BaseStatusEmailOperator):
         '''
         self.set_topic_cols_map()
         unreceived_dict = dict()
-        for msg in self.status_db.get_unreceived_msgs():
+        for msg in self.db_handler.get_unreceived_msgs():
             if msg['topic'] not in unreceived_dict:
                 unreceived_dict.update(
                     { msg['topic']: [[msg.get(key) for key in self.topic_cols_map[msg['topic']]]] })
@@ -50,7 +50,7 @@ class KafkaStatusEmailOperator(BaseStatusEmailOperator):
         return unreceived_dict
 
     def generate_html(self):
-        shelve_db_html = self.status_db.tabulate_data(threshold=self.threshold, tablefmt='html')
+        shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')
         unreceived_html = ""
         unreceived_dict = self.get_unreceived_msgs()
         for topic in unreceived_dict:

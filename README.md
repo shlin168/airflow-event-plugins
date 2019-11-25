@@ -1,7 +1,7 @@
 # Airflow Plugins
 
 ## Event Trigger Plugin
-> available event: kafka
+> available source type: kafka
 
 ### To use kafka plugin
 > install requires: <br/>
@@ -10,6 +10,7 @@
 `python-dateutil`<br/>
 `confluent-kafka==0.11.6`<br/>
 `jinja`<br>
+`sqlalchemy`<br>
 
 ### Kafka Consumer Plugin
 > available match topic: frontier_adw, hippo_finish
@@ -18,12 +19,14 @@
 from airflow.operators.kafka_plugin import KafkaConsumerOperator
 
 kafka_msgs = [
-    {'frequency': 'D', 'topic': 'frontier-adw', 'db': 'db0', 'table': 'table0', 'partition_values': "", 'task_id': "tbla"},
-    {'frequency': 'D', 'topic': 'frontier-adw', 'db': 'db1', 'table': 'table1', 'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "tblb"}
+    {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db0', 'table': 'table0', 'partition_values': "", 'task_id': "tbla"},
+    {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db1', 'table': 'table1', 'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "tblb"}
 ]
 
 my_consumer = KafkaConsumerOperator(
     task_id='my_consumer',
+    sensor_name=Optional[string], # use dag_id.task_id if not given, it's sensor identification in db.
+    source_type='kafka',
     broker='localhost:9092',
     group_id='test',
     client_id='test',
@@ -33,8 +36,8 @@ my_consumer = KafkaConsumerOperator(
     mark_success=True,
     soft_fail=False,
     mode='reschedule',
-    status_file='<your path to store sensor status>',
-    debug_mode=False
+    debug_mode=False,
+    session=Optional[Session]  # given if not using airflow db to store sensor status
 )
 
 # task_id should be same as value in kafka_msgs
@@ -52,11 +55,11 @@ my_consumer >> [A, B]
 ```python
 from airflow.operators.kafka_plugin import KafkaProducerOperator
 
-# produce 'test' message to hippo-finish topic
+# produce 'test' message to job-finish topic
 send = KafkaProducerOperator(
     task_id='send',
     broker='localhost:9092',
-    topic='hippo-finish',
+    topic='job-finish',
     data=['test']           # list of messages to produce
 )
 ```
@@ -90,11 +93,11 @@ match_dict = {
         # group 1: produce 1 message to represent that the table is done
         'db': 'db1',
         'table': 'table1',
-        'partition_fields': ['exec_group']}, {
+        'partition_fields': 'exec_group'}, {
         # group 2: produce 1 message to represent that the table is done
         'db': 'db2',
         'table': 'table2',
-        'partition_fields': ['exec_date/exec_group']
+        'partition_fields': 'exec_date/exec_group'
     }],
     ...
 }

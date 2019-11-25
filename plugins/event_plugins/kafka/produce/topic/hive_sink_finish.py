@@ -22,7 +22,7 @@ class HiveSinkFinish(Base):
     def merge_messages(self, msg_list):
         if len(msg_list) > 0:
             new_msg = msg_list[0]
-            new_msg["partition_values"] = [""]
+            new_msg["partition_values"] = "+".join(v["partition_values"] for v in msg_list)
             new_msg["system_datetime"] = max([v["system_datetime"] for v in msg_list])
             new_msg["count"] = sum([v["count"] for v in msg_list])
             new_msg["duration_time"] = sum([v["duration_time"] for v in msg_list])

@@ -1,7 +1,7 @@
 from airflow.utils.decorators import apply_defaults
 from airflow.operators.email_operator import EmailOperator
 
-from event_plugins.common.storage.shelve_db import MessageRecordCRUD
+from event_plugins.common.storage.event_message import EventMessageCRUD
 
 
 class BaseStatusEmailOperator(EmailOperator):
@@ -23,7 +23,7 @@ class BaseStatusEmailOperator(EmailOperator):
         super(BaseStatusEmailOperator, self).__init__(subject=subject,
                                                        html_content=html_content,
                                                        *args, **kwargs)
-        self.status_db = MessageRecordCRUD(status_path, self.plugin_name)
+        self.db_handler = MessageRecordCRUD(status_path, self.plugin_name)
         self.threshold = threshold
         if not self.subject:
             self.subject=self.default_subject
@@ -31,7 +31,7 @@ class BaseStatusEmailOperator(EmailOperator):
             self.html_content = self.generate_html()
 
     def generate_html(self):
-        shelve_db_html = self.status_db.tabulate_data(threshold=self.threshold, tablefmt='html')
+        shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')
         # use old method to compose html string since using 'format' will lead to
         # jinja template confliction
         return """

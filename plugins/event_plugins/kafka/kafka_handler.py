@@ -9,8 +9,8 @@ from event_plugins.base.base_handler import BaseAllMessageHandler
 from event_plugins.base.base_handler import BaseSingleMessageHandler
 
 from event_plugins.kafka.kafka_connector import KafkaConnector
-from event_plugins.kafka.message.topic import topic_factory
-from event_plugins.kafka.message.utils import MsgRenderUtils
+from event_plugins.kafka.consume.topic import topic_factory
+from event_plugins.kafka.consume.utils import MsgRenderUtils
 
 
 class KafkaHandler(BaseHandler):
@@ -110,8 +110,8 @@ class KafkaSingleMessageHandler(BaseSingleMessageHandler):
     '''Handle single msg (json format), might be used to handle wanted message or received message
         Example:
             wanted_msg:
-                {'frequency': 'D', 'topic': 'frontier-adw', 'db': 'db1', 'table': 'table1',
-                    'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "frontier-adw-tblb"}
+                {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db1', 'table': 'table1',
+                    'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "etl-finish-tblb"}
             received_msg:
                 {"db":"db1", "table":"table1", "partition_fields":["yyyymm"],
                     "partition_values":["201906"], "exec_date":1560925430}"""

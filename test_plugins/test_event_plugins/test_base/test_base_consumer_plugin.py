@@ -1,7 +1,11 @@
 # -*- coding: UTF-8 -*-
-
 import os
 import pytest
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from airflow.models.base import Base
 
 from event_plugins.common.schedule.time_utils import TimeUtils
 
@@ -13,18 +17,21 @@ from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseConn
 def patch_now(mocker, now):
     mocker.patch.object(TimeUtils, 'get_now', return_value=now)
 
-def remove_db(db):
-    def get_exist_db(db):
-        # shelve db might have different extension depends on 'anydbm' module
-        extension_choices = ['', '.db', '.dir', '.pag']
-        for ext in extension_choices:
-            if os.path.exists(db + ext):
-                return db + ext
-        return None
 
-    exist_db = get_exist_db(db)
-    if exist_db:
-        os.remove(exist_db)
+AIRFLOW_HOME = os.environ['AIRFLOW_HOME']
+# engine = create_engine('sqlite:///{home}/unittests.db'.format(home=AIRFLOW_HOME))
+engine = create_engine('sqlite:///:memory:')
+
+# create 'event_plugin' table if not exist
+Base.metadata.create_all(engine)
+
+
+@pytest.fixture()
+def session():
+    session = sessionmaker(bind=engine)()
+    session.execute(Base.metadata.tables['event_plugins'].delete())
+    yield session
+    session.close()
 
 
 class TestBaseConsumerOperator:
@@ -36,15 +43,11 @@ class TestBaseConsumerOperator:
             1. Most of base class are interace, we implemented mocks class in mocks_base_plugin.py
             2. Task time out and reschedule in execute() is not included here.
     '''
-
-    def test_poke_all_D_messages(self, mocker):
+    @pytest.mark.usefixtures("session")
+    def test_poke_all_D_messages(self, session, mocker):
         ######################
         #  prepare for test  #
         ######################
-        # remove status db before test
-        status_fpath = os.path.join(os.environ.get('SERVICE_HOME'), 'test_plugins/sensor')
-        remove_db(status_fpath)
-
         # define wanted_msgs
         wanted_msgs = [
             {'task_id': 'taskA', 'frequency': 'D'},
@@ -55,12 +58,14 @@ class TestBaseConsumerOperator:
         # initial operator
         operator = MockBaseConsumerOperator(
             task_id='test',
+            source_type='base',
+            sensor_name="test",
             msgs=wanted_msgs,
             poke_interval=2,
             timeout=10,
             mark_success=False,
-            status_file=status_fpath,
-            debug_mode=True
+            debug_mode=True,
+            session=session
         )
         # patch factory since 'test' is not one of official event plugins
         mocker.patch('event_plugins.factory.plugin_factory', return_value=MockBaseHandler('test'))
@@ -86,7 +91,7 @@ class TestBaseConsumerOperator:
         # param context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.status_db.get_unreceived_msgs()) == 1
+        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
 
         ##############################################
         #  situation: received taskC (ALL_RECEIVED)  #
@@ -108,7 +113,7 @@ class TestBaseConsumerOperator:
         # clear the messages in status db from 2019/7/7 since it's 2019/7/8
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.status_db.get_unreceived_msgs()) == 2
+        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 2
 
         #####################################################
         #  situation: received taskA, taskB (ALL_RECEIVED)  #
@@ -117,15 +122,11 @@ class TestBaseConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == True
 
-
-    def test_poke_D_M_messages(self, mocker):
+    @pytest.mark.usefixtures("session")
+    def test_poke_D_M_messages(self, session, mocker):
         ######################
         #  prepare for test  #
         ######################
-        # tmp file for status db
-        status_fpath = os.path.join(os.environ.get('SERVICE_HOME'), 'test_plugins/sensor')
-        remove_db(status_fpath)
-
         # define wanted messages
         wanted_msgs = [
             {'task_id': 'taskA', 'frequency': 'D'},
@@ -136,12 +137,14 @@ class TestBaseConsumerOperator:
         # initialize operator
         operator = MockBaseConsumerOperator(
             task_id='test',
+            source_type='base',
+            sensor_name="test",
             msgs=wanted_msgs,
             poke_interval=2,
             timeout=10,
             mark_success=False,
-            status_file=status_fpath,
-            debug_mode=True
+            debug_mode=True,
+            session=session
         )
         # patch factory since 'test' is not one of official event plugins
         mocker.patch('event_plugins.factory.plugin_factory', return_value=MockBaseHandler('test'))
@@ -167,7 +170,7 @@ class TestBaseConsumerOperator:
         # context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.status_db.get_unreceived_msgs()) == 1
+        assert len(operator.db_handler.get_unreceived_msgs(session)) == 1
 
         ###############################
         #  [Time Changed] 2019/07/08  #
@@ -183,7 +186,7 @@ class TestBaseConsumerOperator:
         # taskC(M) is monthly message so the last_receive won't be cleared
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.status_db.get_unreceived_msgs()) == 2
+        assert len(operator.db_handler.get_unreceived_msgs(session)) == 2
 
         ###############################
         #  [Time Changed] 2019/07/09  #
@@ -213,4 +216,4 @@ class TestBaseConsumerOperator:
         # clean all messages since's it both new day and new month
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.status_db.get_unreceived_msgs()) == 2
+        assert len(operator.db_handler.get_unreceived_msgs(session)) == 2

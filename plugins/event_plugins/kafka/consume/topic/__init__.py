@@ -1,11 +1,11 @@
 # -*- coding: UTF-8 -*-
-from event_plugins.kafka.message.topic.frontier_adw import FrontierAdw
-from event_plugins.kafka.message.topic.hippo_finish import HippoFinish
+from event_plugins.kafka.consume.topic.etl_finish import ETLFinish
+from event_plugins.kafka.consume.topic.job_finish import JobFinish
 
 
 topic_map = {
-    'frontier-adw': FrontierAdw,
-    'hippo-finish': HippoFinish
+    'etl-finish': ETLFinish,
+    'job-finish': JobFinish
 }
 
 def topic_factory(topic_name):

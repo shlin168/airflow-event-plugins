@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import json
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 
@@ -29,9 +30,9 @@ class KafkaConsumerOperator(BaseConsumerOperator):
         self.conn_handler = plugin_factory(self.name).conn_handler(self.broker)
         self.conn_handler.set_consumer(self.group_id, self.client_id, topics)
 
-    def initialize_status_db(self):
+    def initialize_db_handler(self):
         # Initialize status DB, clear last_receive_time if msg timeout
         rmsgs = self.all_msgs_handler.get_wanted_msgs(render=True)
-        self.status_db.initialize(rmsgs)
+        self.db_handler.initialize(rmsgs, session=self.session)
         if self.debug_mode:
-            self.log.info(self.status_db.tabulate_data())
+            self.log.info(self.db_handler.tabulate_data(session=self.session))

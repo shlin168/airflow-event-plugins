@@ -9,11 +9,13 @@ from airflow.exceptions import AirflowException, AirflowSensorTimeout, \
     AirflowSkipException, AirflowRescheduleException
 from airflow.utils.state import State
 from airflow.utils import timezone
+from airflow.settings import Session
 from airflow.ti_deps.deps.ready_to_reschedule import ReadyToRescheduleDep
 
 from event_plugins import factory
 
-from event_plugins.common.storage.shelve_db import MessageRecordCRUD, DBStatus
+from event_plugins.common.storage.event_message import EventMessageCRUD
+from event_plugins.common.status import DBStatus
 from event_plugins.common.success.success_mixin import SuccessMixin
 from event_plugins.common.schedule.timeout import TaskTimeout
 from event_plugins.common.schedule.time_utils import TimeUtils
@@ -29,6 +31,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
     @apply_defaults
     def __init__(self,
                  msgs,
+                 source_type,
                  poke_interval,
                  timeout=None,
                  mark_success=False,
@@ -36,6 +39,8 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
                  mode='poke',
                  status_file=None,
                  debug_mode=False,
+                 sensor_name=None,
+                 session=None,
                  *args,
                  **kwargs):
         super(BaseConsumerOperator, self).__init__(*args, **kwargs)
@@ -44,10 +49,15 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.poke_interval = poke_interval
         self.soft_fail = soft_fail
         self.debug_mode = debug_mode
+        self.session = session
 
         # check parameters
+        if sensor_name is None:
+            sensor_name = ".".join([self.dag.dag_id, self.task_id])
+        if self.session is None:
+            self.session = Session
         self.set_mode(mode)
-        self.set_status_db(status_file)
+        self.set_status_rows(source_type, sensor_name)
         self.set_all_msgs_handler(msgs)
 
     def set_mode(self, mode):
@@ -60,18 +70,15 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
                         m=mode))
         self.mode = mode
 
-    def set_status_db(self, status_file):
-        if not status_file:
-            raise AirflowException("need status file to record sensor status")
-        self.status_db = MessageRecordCRUD(status_file, self.name)
+    def set_status_rows(self, source_type, sensor_name):
+        self.db_handler = EventMessageCRUD(source_type, sensor_name)
 
     def set_all_msgs_handler(self, msgs):
         self.all_msgs_handler = factory.plugin_factory(self.name).all_msgs_handler(msgs)
 
     def poke(self, context, consumer):
         # initialize or update messages in status db before consuming messages
-        self.initialize_status_db()
-
+        self.initialize_db_handler()
         # start conuming and matching messages
         msg_list = consumer.get_messages()
         receive_dt = TimeUtils().get_now()
@@ -88,10 +95,10 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
             else:
                 if match_wanted is not None:
                     received_msgs.append(match_wanted)
-                    self.status_db.update_on_receive(match_wanted, receive_msg)
+                    self.db_handler.update_on_receive(match_wanted, receive_msg, session=self.session)
                     if self.debug_mode:
                         self.log.info("Received wanted data: {}".format(msg_value))
-                        self.log.info(self.status_db.tabulate_data())
+                        self.log.info(self.db_handler.tabulate_data(session=self.session))
                     if self.mark_success:
                         self._mark_success_task_by_id(context, match_wanted['task_id'])
                 else:
@@ -100,9 +107,8 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
 
         # mark skip if last_receive_time is not None and task status is None (received before)
         if self.mark_success:
-            for have_successed_msg in self.status_db.have_successed_msgs(received_msgs):
+            for have_successed_msg in self.db_handler.have_successed_msgs(received_msgs, session=self.session):
                 self._mark_skip_task_by_id(context, have_successed_msg['task_id'])
-
         return self.is_criteria_met()
 
     def execute(self, context):
@@ -171,25 +177,25 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
     def initialize_conn_handler(self):
         raise NotImplementedError('implement how to connect to source and return connector')
 
-    def initialize_status_db(self):
+    def initialize_db_handler(self):
         # Initialize status DB, clear last_receive_time if msg timeout
         # override if you need to render the messages
         msgs = self.all_msgs_handler.get_wanted_msgs()
-        self.status_db.initialize(msgs)
+        self.db_handler.initialize(msg_list=msgs, session=self.session)
         if self.debug_mode:
-            self.log.info(self.status_db.tabulate_data())
+            self.log.info(self.db_handler.tabulate_data(session=self.session))
 
     def is_criteria_met(self):
         # check if condition met before exist poke function
         threshold = 50
         if self.debug_mode:
             threshold = None
-        if self.status_db.status() == DBStatus.ALL_RECEIVED:
-            self.log.info(self.status_db.tabulate_data(threshold=threshold))
+        if self.db_handler.status(session=self.session) == DBStatus.ALL_RECEIVED:
+            self.log.info(self.db_handler.tabulate_data(threshold=threshold, session=self.session))
             return True
-        elif self.status_db.status() == DBStatus.NOT_ALL_RECEIVED:
-            unreceived_rmsgs = self.status_db.get_unreceived_msgs()
-            self.log.info(self.status_db.tabulate_data(threshold=threshold))
+        elif self.db_handler.status(session=self.session) == DBStatus.NOT_ALL_RECEIVED:
+            unreceived_rmsgs = self.db_handler.get_unreceived_msgs(session=self.session)
+            self.log.info(self.db_handler.tabulate_data(threshold=threshold, session=self.session))
             self.log.info('criteria not met in this round, require msgs {}'.format(unreceived_rmsgs))
             return False
 
@@ -217,7 +223,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
             self.skip(context['dag_run'], context['ti'].execution_date, [ti])
 
     def _skip_unexecuted_downstream_tasks(self, context):
-        unreceived_msgs = self.status_db.get_unreceived_msgs()
+        unreceived_msgs = self.db_handler.get_unreceived_msgs()
         unexecuted_task_ids = self.all_msgs_handler.get_task_ids(unreceived_msgs)
         self.log.info('skip task: {}'.format(unexecuted_task_ids))
         unexecuted_tasks = map(lambda v: self.downstream_tasks_map[v], unexecuted_task_ids)

@@ -1,10 +1,10 @@
 # -*- coding: UTF-8 -*-
 
-from event_plugins.kafka.message.topic.basic import BasicMessage
+from event_plugins.kafka.consume.topic.basic import BasicMessage
 from event_plugins.common.schedule.time_utils import TimeUtils
 
 
-class HippoFinish:
+class JobFinish:
 
     def __init__(self, name):
         self.name = name
@@ -15,10 +15,10 @@ class HippoFinish:
 
 class Message(BasicMessage):
 
-    offset_sec = 7200
+    offset_sec = 0
     offset_day = 0
 
-    match_keys = ['hippo_name', 'job_name', 'is_success']
+    match_keys = ['job_name', 'is_success']
     render_match_keys = []
     time_key = 'finish_time'
 
@@ -26,10 +26,10 @@ class Message(BasicMessage):
         super(Message, self).__init__(wanted_msg)
 
     def get_match_handler(self):
-        return HippoFinishMatch
+        return JobFinishMatch
 
 
-class HippoFinishMatch:
+class JobFinishMatch:
 
     @staticmethod
     def match_by_keys(msg, wanted_msg, match_keys):

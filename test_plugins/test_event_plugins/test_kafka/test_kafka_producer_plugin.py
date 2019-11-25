@@ -15,28 +15,25 @@ file_list = [os.path.join(test_home, 'testa.txt'),
 @pytest.fixture(scope="class", autouse=True)
 def prepare_test_files():
     merge_a = [
-        {"topic": "hippo-finish", "data": [
-            {"job_id": "gp_001_1564568760",
-             "finish_time": 1564568760,
+        {"topic": "job-finish", "data": [
+            {"finish_time": 1564568760,
+             "proj_name": "test_gp",
              "duration_time": 50,
-             "hippo_name": "uat.project",
              "is_success": True,
              "job_name": "gp_001"},
-            {"job_id": "ds_1_1564569620",
-             "finish_time": 1564569620,
+            {"finish_time": 1564569620,
+             "proj_name": "test_ds",
              "duration_time": 100,
-             "hippo_name": "ut.ds",
              "is_success": True,
-             "job_name": "ds_1"}]},
+             "job_name": "ds1"}]},
         {"topic": "hive-sink-finish", "data": [
-            {"partition_values": ["gp_001"],
-             "db": "btmp_cmd",
+            {"db": "tmp",
              "table": "test",
-             "exec_date": "2019-07-14",
-             "job_type": "single",
-             "system_datetime": "2019-07-29 14:29:26",
-             "partition_fields": ["exec_group"],
+             "partition_fields": "exec_group",
+             "partition_values": "gp_001",
              "count": 60,
+             "data_date": "2019-07-14",
+             "system_datetime": "2019-07-29 14:29:26",
              "duration_time": 300,
              "options": {"items_info":
                 [{"item_id": "ctct0001", "item_name": "abc", "count": 123},
@@ -44,28 +41,25 @@ def prepare_test_files():
             }]
         }]
     merge_b = [
-        {"topic": "hippo-finish", "data": [
-            {"job_id": "gp_002_1564568770",
-             "finish_time": 1564568770,
+        {"topic": "job-finish", "data": [
+            {"finish_time": 1564568770,
+             "proj_name": "test_gp",
              "duration_time": 150,
-             "hippo_name": "uat.project",
              "is_success": True,
              "job_name": "gp_002"},
-            {"job_id": "ds_2_1564569650",
-             "finish_time": 1564569650,
+            {"finish_time": 1564569650,
+             "proj_name": "test_ds",
              "duration_time": 200,
-             "hippo_name": "ut.ds",
              "is_success": True,
-             "job_name": "ds_2"}]},
+             "job_name": "ds2"}]},
         {"topic": "hive-sink-finish", "data": [
-            {"partition_values": ["gp_002"],
-             "db": "btmp_cmd",
+            {"db": "tmp",
              "table": "test",
-             "exec_date": "2019-07-14",
-             "job_type": "single",
-             "system_datetime": "2019-07-29 14:30:00",
-             "partition_fields": ["exec_group"],
+             "partition_fields": "exec_group",
+             "partition_values": "gp_002",
              "count": 40,
+             "data_date": "2019-07-14",
+             "system_datetime": "2019-07-29 14:30:00",
              "duration_time": 200,
              "options": {"items_info":
                 [{"item_id": "ctct0003", "item_name": "ghi", "count": 789},
@@ -88,24 +82,24 @@ class TestKafkaProducerFromMergeFileOperator:
     def test_merge_multiple_files(self):
         result = merge_multiple_files(file_list)
         assert len(result) == 2
-        assert len(result["hippo-finish"]) == 4
+        assert len(result["job-finish"]) == 4
         assert len(result["hive-sink-finish"]) == 2
 
     def test_factory(self):
-        assert topic_factory("hippo-finish") == topic_factory("uat-hippo-finish")
+        assert topic_factory("job-finish") == topic_factory("uat-job-finish")
         assert topic_factory("hive-sink-finish") == topic_factory("uat-hive-sink-finish")
         assert topic_factory("test_none") is None
 
     def test_get_merge_msg(self):
         match_dict = {
             'HiveSinkFinish': [
-                {'db': 'btmp_cmd',
+                {'db': 'tmp',
                  'table': 'test',
-                 'partition_fields': ['exec_group']}],
-            'HippoFinish': [
-                {'hippo_name': 'uat.project',
+                 'partition_fields': 'exec_group'}],
+            'JobFinish': [
+                {'proj_name': 'test_gp',
                  'is_success': True},
-                {'hippo_name': 'ut.ds',
+                {'proj_name': 'test_ds',
                  'is_success': True},
             ]
         }
@@ -123,21 +117,33 @@ class TestKafkaProducerFromMergeFileOperator:
                 merge_msgs = list(merge_msgs)
                 if topic == 'hive-sink-finish':
                     assert len(merge_msgs) == 1
-                    assert (json.dumps(merge_msgs[0], sort_keys=True) ==
-                        '{"count": 100, "db": "btmp_cmd", "duration_time": 500, '
-                        '"exec_date": "2019-07-14", "job_type": "single", '
-                        '"options": {"items_info": '
-                            '[{"count": 789, "item_id": "ctct0003", "item_name": "ghi"}, '
-                            '{"count": 100, "item_id": "ctct0004", "item_name": "jkl"}]}, '
-                        '"partition_fields": ["exec_group"], "partition_values": [""], '
-                        '"system_datetime": "2019-07-29 14:30:00", "table": "test"}')
-                elif topic == 'hippo-finish':
+                    assert cmp(merge_msgs[0], {
+                        'db': 'tmp',
+                        'table': 'test',
+                        'partition_fields': 'exec_group',
+                        'partition_values': 'gp_001+gp_002',
+                        'count': 100,
+                        'data_date': '2019-07-14',
+                        'system_datetime': '2019-07-29 14:30:00',
+                        'duration_time': 500,
+                        'options': {'items_info':
+                            [{'item_id': 'ctct0003', 'item_name': 'ghi', 'count': 789},
+                             {'item_id': 'ctct0004', 'item_name': 'jkl', 'count': 100}]
+                        }
+                    }) == 0
+                elif topic == 'job-finish':
                     assert len(merge_msgs) == 2
-                    assert (json.dumps(merge_msgs[0], sort_keys=True) ==
-                        '{"duration_time": 200, "finish_time": 1564568770, '
-                        '"hippo_name": "uat.project", "is_success": true, '
-                        '"job_id": "uat.project_1564568770", "job_name": "uat.project"}')
-                    assert (json.dumps(merge_msgs[1], sort_keys=True) ==
-                        '{"duration_time": 300, "finish_time": 1564569650, '
-                        '"hippo_name": "ut.ds", "is_success": true, '
-                        '"job_id": "ut.ds_1564569650", "job_name": "ut.ds"}')
+                    assert cmp(merge_msgs[0], {
+                        "duration_time": 200,
+                        "finish_time": 1564568770,
+                        "is_success": True,
+                        "job_name": "gp_001+gp_002",
+                        "proj_name": "test_gp"
+                    }) == 0
+                    assert cmp(merge_msgs[1], {
+                        "duration_time": 300,
+                        "finish_time": 1564569650,
+                        "is_success": True,
+                        "job_name": "ds1+ds2",
+                        "proj_name": "test_ds"
+                    }) == 0

@@ -1,11 +1,11 @@
 # -*- coding: UTF-8 -*-
 
 from event_plugins.common.schedule.time_utils import TimeUtils
-from event_plugins.kafka.message.topic.basic import BasicMessage
-from event_plugins.kafka.message.utils import render_func
+from event_plugins.kafka.consume.topic.basic import BasicMessage
+from event_plugins.kafka.consume.utils import render_func
 
 
-class FrontierAdw:
+class ETLFinish:
 
     def __init__(self, name):
         self.name = name
@@ -19,7 +19,7 @@ class FrontierAdw:
 
 class Message(BasicMessage):
 
-    offset_sec = 7200
+    offset_sec = 0
     offset_day = 2
 
     match_keys = ['db', 'table']
@@ -39,10 +39,10 @@ class Message(BasicMessage):
         return exec_dt
 
     def get_match_handler(self):
-        return FrontierADWMatch
+        return ETLMatch
 
 
-class FrontierADWMatch:
+class ETLMatch:
 
     @staticmethod
     def match_by_keys(msg, wanted_msg, match_keys):
@@ -51,7 +51,7 @@ class FrontierADWMatch:
     @staticmethod
     def match_by_rkeys(msg, wanted_msg, match_keys):
         '''
-            weird match in render key, since rendered (key, value) from frontier-adw topic is like
+            weird match in render key, since rendered (key, value) from etl-finish topic is like
             {'partition_values': ['201907'], ...}
             but the value list only contains one item
         '''
