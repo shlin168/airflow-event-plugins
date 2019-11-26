@@ -98,6 +98,7 @@ class TestBaseConsumerOperator:
         ##############################################
         mocker.patch.object(MockBaseConnector, 'get_messages', return_value=['taskC'])
         is_criteria_met = operator.poke(context=None, consumer=consumer)
+        print operator.db_handler.tabulate_data(session=session)
         assert is_criteria_met == True
 
         ###############################

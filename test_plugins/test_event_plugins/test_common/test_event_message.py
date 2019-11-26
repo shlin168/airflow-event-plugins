@@ -1,6 +1,9 @@
 # coding=utf-8
-import os
+from __future__ import print_function
+
+import json
 import mock
+import os
 import pytest
 import pytz
 
@@ -53,10 +56,10 @@ def msg_list():
 @pytest.fixture()
 def overwrite_msg_list():
     return [
-        {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db0', 'table': 'tbl1',
-            'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "tbla"},
-        {'frequency': 'M', 'topic': 'etl-finish', 'db': 'db0', 'table': 'tbl2',
-            'partition_values': "", 'task_id': "tblb"},
+        {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db0', 'table': 'tbl0',
+            'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "tblb"},
+        {'frequency': 'M', 'topic': 'etl-finish', 'db': 'db0', 'table': 'tbl1',
+            'partition_values': "", 'task_id': "tblc"},
         {'frequency': 'D', 'topic': 'job-finish', 'job_name': 'jn1', 'task_id': "job1"},
     ]
 
@@ -84,9 +87,21 @@ class TestEventMessageCRUD:
         db.initialize(msg_list, session=session)
         msgs = db.get_sensor_messages(session=session)
         assert msgs.count() == 2
+
+        # update msg2 to check if update not remove existing value
+        msg2 = {'frequency': 'M', 'topic': 'etl-finish', 'db': 'db0', 'table': 'tbl1',
+            'partition_values': "", 'task_id': "tblc"}
+        msg2_id = None
+        for m in msgs:
+            if m.msg == json.dumps(msg2, sort_keys=True):
+                msg2_id = m.id
+        msg2 = msgs.filter(EventMessage.id == msg2_id).first()
+        msg2.last_receive_time = TimeUtils().datetime(2019, 6, 13)
+
         db.initialize(overwrite_msg_list, session=session)
         msgs = db.get_sensor_messages(session=session)
         assert msgs.count() == 3
+        assert msgs.filter(EventMessage.id == msg2_id).first().last_receive_time == TimeUtils().datetime(2019, 6, 13)
 
     @pytest.mark.usefixtures("db", "msg_list")
     def test_get_timeout(self, db, msg_list, mocker):
@@ -134,14 +149,14 @@ class TestEventMessageCRUD:
         session.commit()
 
         db.reset_timeout(session=session)
-        records = db.get_sensor_messages(session=session)
-        timeout_record = records.filter(EventMessage.msg == msg1).first()
+        records = db.get_sensor_messages(session=session).all()
+        timeout_record = filter(lambda r: r.msg == json.dumps(msg1, sort_keys=True), records)[0]
         assert (
             timeout_record.last_receive is None and
             timeout_record.last_receive_time is None and
             timeout_record.timeout == TimeUtils().datetime(2019, 6, 16, 23, 59, 59)
         )
-        untimeout_record = records.filter(EventMessage.msg == msg2).first()
+        untimeout_record = filter(lambda r: r.msg == json.dumps(msg2, sort_keys=True), records)[0]
         assert (
             untimeout_record.last_receive == {'test':2} and
             untimeout_record.last_receive_time == TimeUtils().datetime(2019, 6, 13)
@@ -181,35 +196,26 @@ class TestEventMessageCRUD:
 
         # last_receive_time and last_receive should be both NOT NONE,
         # or the status would be still NOT_ALL_RECEIVED
-        session.query(EventMessage).filter(
-            and_(
-                EventMessage.name == TEST_SENSOR_NAME,
-                EventMessage.msg == msg2
-            )
-        ).update({'last_receive_time': TimeUtils().datetime(2019, 6, 13)})
+        records = db.get_sensor_messages(session=session)
+        msg2_id = None
+        for record in records:
+            if record.msg == json.dumps(msg2, sort_keys=True):
+                msg2_id = record.id
+        msg2 = records.filter(EventMessage.id == msg2_id).first()
+        msg2.last_receive_time = TimeUtils().datetime(2019, 6, 13)
         session.commit()
         assert db.get_sensor_messages(session=session).count() == 2
         assert db.status(session=session) == DBStatus.NOT_ALL_RECEIVED
 
         # change second record to emulate message received
-        session.query(EventMessage).filter(
-            and_(
-                EventMessage.name == TEST_SENSOR_NAME,
-                EventMessage.msg == msg2
-            )
-        ).update({'last_receive': {'test':1}})
+        msg2.last_receive = {'test':1}
         session.commit()
         assert db.get_sensor_messages(session=session).count() == 2
         assert db.status(session=session) == DBStatus.ALL_RECEIVED
 
         # if receive zero value as message, it is RECEIVED when checking status
         # TODO this might change since only json format is valid message so far
-        session.query(EventMessage).filter(
-            and_(
-                EventMessage.name == TEST_SENSOR_NAME,
-                EventMessage.msg == msg2
-            )
-        ).update({'last_receive': 0})
+        msg2.last_receive = 0
         assert db.status(session=session) == DBStatus.ALL_RECEIVED
 
     @pytest.mark.usefixtures("db", "session")
@@ -352,15 +358,15 @@ class TestEventMessageCRUD:
         session.commit()
 
         result = db.tabulate_data(session=session)
-        print result
+        print(result)
         captured = capsys.readouterr()
         expected_result = (
-"""╒══════╤════════╤═════════════════════════════╤═══════════════╤═════════════╤════════════════╤═════════════════════╤═════════════════════╕
-│   id │ name   │ msg                         │ source_type   │ frequency   │ last_receive   │ last_receive_time   │ timeout             │
-╞══════╪════════╪═════════════════════════════╪═══════════════╪═════════════╪════════════════╪═════════════════════╪═════════════════════╡
-│    1 │ test   │ {u'test': u'received'}      │ kafka         │ D           │ None           │ None                │ 2019-06-15 23:59:59 │
-├──────┼────────┼─────────────────────────────┼───────────────┼─────────────┼────────────────┼─────────────────────┼─────────────────────┤
-│    2 │ test   │ {u'test': u'have_received'} │ kafka         │ M           │ {u'test': 2}   │ 2019-06-20 02:00:00 │ 2019-06-30 23:59:59 │
-╘══════╧════════╧═════════════════════════════╧═══════════════╧═════════════╧════════════════╧═════════════════════╧═════════════════════╛
+"""╒══════╤════════╤═══════════════════════════╤═══════════════╤═════════════╤════════════════╤═════════════════════╤═════════════════════╕
+│   id │ name   │ msg                       │ source_type   │ frequency   │ last_receive   │ last_receive_time   │ timeout             │
+╞══════╪════════╪═══════════════════════════╪═══════════════╪═════════════╪════════════════╪═════════════════════╪═════════════════════╡
+│    1 │ test   │ {"test": "received"}      │ kafka         │ D           │ None           │ None                │ 2019-06-15 23:59:59 │
+├──────┼────────┼───────────────────────────┼───────────────┼─────────────┼────────────────┼─────────────────────┼─────────────────────┤
+│    2 │ test   │ {"test": "have_received"} │ kafka         │ M           │ {u'test': 2}   │ 2019-06-20 02:00:00 │ 2019-06-30 23:59:59 │
+╘══════╧════════╧═══════════════════════════╧═══════════════╧═════════════╧════════════════╧═════════════════════╧═════════════════════╛
 """.decode('utf8'))
         assert captured.out == expected_result

@@ -2,6 +2,7 @@ import os
 import json
 import pytz
 from datetime import datetime
+import six
 from tabulate import tabulate
 
 from sqlalchemy.orm import validates
@@ -25,7 +26,7 @@ class EventMessage(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String)
-    msg = Column(JSON)
+    msg = Column(String)
     source_type = Column(String(32))
     frequency = Column(String(4))
     last_receive = Column(JSON)
@@ -39,20 +40,34 @@ class EventMessage(Base):
     def __init__(self, name, msg, source_type, frequency, last_receive, last_receive_time, timeout):
         '''
             name(string): sensor name, to identify different sensors in airflow
-            msg(json_obj): wanted message
+            msg(string|dict): wanted message. json dumps(sort_keys=True) if input type is dict,
+                                              remain input if input type is string(json format).
             source_type(string): consume source name. e.g., kafka
             frequency(string): string such as 'D' or 'M' to show received frequency of message
             last_receive(json_obj): the last received message
             last_receive_time(datetime): the last time received message in 'last_receive' column
             timeout(datetime): when will the received message time out
         '''
-        self.msg = msg
+        self.msg = self.check_msg(msg)
         self.name = name
         self.source_type = source_type
         self.frequency = frequency
         self.last_receive = last_receive
         self.last_receive_time = last_receive_time
         self.timeout = timeout
+
+    def check_msg(self, msg):
+        if isinstance(msg, dict):
+            return json.dumps(msg, sort_keys=True)
+        elif isinstance(msg, six.string_types):
+            try:
+                json.loads(msg)
+                return msg
+            except ValueError:
+                print("string should be json format")
+                raise
+        else:
+            raise TypeError("msg should be either string or dict type")
 
     @validates('frequency')
     def validate_frequency(self, key, frequency):
@@ -83,9 +98,10 @@ class EventMessageCRUD:
             self.reset_timeout(base_time=dt, session=session)
         else:
             for msg in msg_list:
+                str_msg = json.dumps(msg, sort_keys=True)
                 record = EventMessage(
                     name=self.sensor_name,
-                    msg=msg,
+                    msg=str_msg,
                     source_type=self.source_type,
                     frequency=msg['frequency'],
                     last_receive=None,
@@ -110,17 +126,21 @@ class EventMessageCRUD:
                 msg_list(list of json object): messages that need to be record in db
         '''
         exist_records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        del_records = exist_records.filter(EventMessage.msg.notin_(msg_list))
-        del_records.delete(synchronize_session='fetch')
+        str_msg_list = map(lambda v: json.dumps(v, sort_keys=True), msg_list)
+        del_record_list = filter(lambda r: r.msg not in str_msg_list, exist_records)
+        del_ids = map(lambda r: r.id, del_record_list)
+        exist_records.filter(EventMessage.id.in_(del_ids)).delete(synchronize_session='fetch')
 
         new_msgs = list()
         for msg in msg_list:
-            if msg not in [r.msg for r in exist_records]:
+            str_msg = json.dumps(msg, sort_keys=True)
+            if str_msg not in [r.msg for r in exist_records]:
                 new_msgs.append(msg)
         for new_msg in new_msgs:
+            str_new_msg = json.dumps(new_msg, sort_keys=True)
             record = EventMessage(
                 name=self.sensor_name,
-                msg=new_msg,
+                msg=str_new_msg,
                 source_type=self.source_type,
                 frequency=new_msg['frequency'],
                 last_receive=None,
@@ -155,10 +175,14 @@ class EventMessageCRUD:
         for record in update_records:
             record.last_receive_time = None
             record.last_receive = None
-            record.timeout = self.get_timeout(record.msg)
+            record.timeout = self.get_timeout(json.loads(record.msg))
         session.commit()
 
     def get_timeout(self, msg):
+        '''Get timeout defined by each plugin
+            Args:
+                msg(dict): wanted message
+        '''
         return factory.plugin_factory(self.source_type) \
                 .msg_handler(msg=msg, mtype='wanted').timeout()
 
@@ -182,7 +206,9 @@ class EventMessageCRUD:
             json object list of not-received messages
         '''
         records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        return [r.msg for r in records if r.last_receive is None and r.last_receive_time is None]
+        unreceive_msgs = [json.loads(r.msg) for r in records if r.last_receive is None \
+                                                            and r.last_receive_time is None]
+        return unreceive_msgs
 
     @provide_session
     def have_successed_msgs(self, received_msgs, session=None):
@@ -197,8 +223,8 @@ class EventMessageCRUD:
                 json object list of messages that have received
         '''
         records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        successed_msgs = [r.msg for r in records if r.last_receive_time is not None \
-                                            and r.last_receive_time < r.timeout]
+        successed_msgs = [json.loads(r.msg) for r in records if r.last_receive_time is not None \
+                                                and r.last_receive_time < r.timeout]
         successed_but_not_receive = list()
         for successed in successed_msgs:
             if successed not in received_msgs:
@@ -208,15 +234,12 @@ class EventMessageCRUD:
     @provide_session
     def update_on_receive(self, match_wanted, receive_msg, session=None):
         ''' Update last receive time and object when receiving wanted message '''
-        update_record = session.query(EventMessage).filter(
-            and_(
-                EventMessage.name == self.sensor_name,
-                EventMessage.msg == match_wanted
-            )
-        )
-        for record in update_record:
-            record.last_receive_time = TimeUtils().get_now()
-            record.last_receive = receive_msg
+        str_match_wanted = json.dumps(match_wanted, sort_keys=True)
+        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        for record in records:
+            if record.msg == str_match_wanted:
+                record.last_receive_time = TimeUtils().get_now()
+                record.last_receive = receive_msg
         session.commit()
 
     @provide_session

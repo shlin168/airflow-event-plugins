@@ -138,6 +138,21 @@ class TestKafkaConsumerOperator:
         assert is_criteria_met == False
         assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
 
+        # get id of message
+        str_a = json.dumps(a, sort_keys=True)
+        rb = factory.plugin_factory('kafka').msg_handler(b, mtype='wanted').render()
+        str_rb = json.dumps(rb, sort_keys=True)
+        str_c = json.dumps(c, sort_keys=True)
+
+        a_id, b_id, c_id = None, None, None
+        for record in operator.db_handler.get_sensor_messages(session=session):
+            if record.msg == str_a:
+                a_id = record.id
+            elif record.msg == str_rb:
+                b_id = record.id
+            elif record.msg == str_c:
+                c_id = record.id
+
         ##########################################
         #  situation: received b (ALL_RECEIVED)  #
         ##########################################
@@ -159,8 +174,8 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear the messages in status db from 2019/7/7 since it's 2019/7/8
         # timeout for all messages should be set to 2019/07/08 23:59:59
-        record_a = operator.db_handler.get_sensor_messages(session=session) \
-                    .filter(EventMessage.msg == a).first()
+        msgs = operator.db_handler.get_sensor_messages(session=session)
+        record_a = msgs.filter(EventMessage.id == a_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
         assert is_criteria_met == False
         assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 2
@@ -227,6 +242,21 @@ class TestKafkaConsumerOperator:
         assert is_criteria_met == False
         assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
 
+        # get id of message
+        str_a = json.dumps(a, sort_keys=True)
+        rb = factory.plugin_factory('kafka').msg_handler(b, mtype='wanted').render()
+        str_rb = json.dumps(rb, sort_keys=True)
+        str_c = json.dumps(c, sort_keys=True)
+
+        a_id, b_id, c_id = None, None, None
+        for record in operator.db_handler.get_sensor_messages(session=session):
+            if record.msg == str_a:
+                a_id = record.id
+            elif record.msg == str_rb:
+                b_id = record.id
+            elif record.msg == str_c:
+                c_id = record.id
+
         #####################################
         #  [Time Changed] 2019/07/08 00:15  #
         #####################################
@@ -241,11 +271,9 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear last_receive of a(D)
         # c(M) is monthly message so the last_receive won't be cleared
-        rb = factory.plugin_factory('kafka').msg_handler(b, mtype='wanted').render()
-        record_a = operator.db_handler.get_sensor_messages(session=session) \
-                    .filter(EventMessage.msg == a).first()
-        record_b = operator.db_handler.get_sensor_messages(session=session) \
-                    .filter(EventMessage.msg == rb).first()
+        msgs = operator.db_handler.get_sensor_messages(session=session)
+        record_a = msgs.filter(EventMessage.id == a_id).first()
+        record_b = msgs.filter(EventMessage.id == b_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
         assert record_b.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59)
         assert is_criteria_met == False
@@ -265,10 +293,9 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear last_receive of a(D)
         # b(M) and c(M) are monthly message so the last_receive won't be cleared
-        record_a = operator.db_handler.get_sensor_messages(session=session) \
-                    .filter(EventMessage.msg == a).first()
-        record_c = operator.db_handler.get_sensor_messages(session=session) \
-                    .filter(EventMessage.msg == c).first()
+        msgs = operator.db_handler.get_sensor_messages(session=session)
+        record_a = msgs.filter(EventMessage.id == a_id).first()
+        record_c = msgs.filter(EventMessage.id == c_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 9, 23, 59, 59)
         assert record_c.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59)
         assert is_criteria_met == True
