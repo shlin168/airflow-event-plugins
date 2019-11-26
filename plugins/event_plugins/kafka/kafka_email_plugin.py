@@ -3,7 +3,7 @@ from tabulate import tabulate
 from airflow.utils.decorators import apply_defaults
 
 from event_plugins.base.base_email_plugin import BaseStatusEmailOperator
-from event_plugins.kafka.comsume.topic import topic_map, topic_factory
+from event_plugins.kafka.consume.topic import topic_map, topic_factory
 
 
 class KafkaStatusEmailOperator(BaseStatusEmailOperator):

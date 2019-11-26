@@ -21,6 +21,7 @@ from event_plugins.common.schedule.time_utils import TimeUtils
 class EventMessage(Base):
 
     __tablename__ = 'event_plugins'
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String)
