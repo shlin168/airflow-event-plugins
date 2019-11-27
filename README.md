@@ -2,19 +2,22 @@
 > Default airflow plugins are in `$AIRFLOW_HOME/plugins` folder (path is configured in `airflow.cfg`)
 
 ## Usage
-copy needed plugins within [plugins](plugins/) folder to `$AIRFLOW_HOME/plugins` folder. e.g.,
+1. copy needed plugins within [plugins](plugins/) folder to `$AIRFLOW_HOME/plugins` folder. e.g.,
 ```
 cp -r event_plugins $AIRFLOW_HOME/plugins
 ```
+2. use it within DAGs
+
 If using AIRFLOW, you might have a repository to aggregate all the airflow plugins developed by all the developers. It's recommended to use different folders to store different types of plugins
 
 ## Available plugins
 * [Event Plugins](docs/event_plugins.md)
-    * Works as a `Airflow Sensor` that can define multiple events to trigger jobs afterwards. It use dummy tasks to show the status of each events.
+    * [KafkaConsumerOperator](docs/kafka_consumer.md): Works as a `Airflow Sensor` that can define multiple events to trigger jobs afterwards. It use dummy tasks to show the status of each events.
 ### Available Operators
 * kafka_consumer
     * [KafkaConsumerOperator](docs/kafka_consumer.md)
-    * [KafkaStatusEmailOperator](docs/kafka_email.md)
+    * send email for status of kafka consumer operator
+        * [KafkaStatusEmailOperator](docs/kafka_email.md)
 * kafka_producer
     * [KafkaProducerOperator](docs/kafka_producer.md#KafkaProducerOperator)
     * [KafkaProducerFromFileOperator](docs/kafka_producer.md#KafkaProducerFromFileOperator)
