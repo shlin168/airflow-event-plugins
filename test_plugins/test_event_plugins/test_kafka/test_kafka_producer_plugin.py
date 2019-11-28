@@ -29,7 +29,7 @@ def prepare_test_files():
         {"topic": "hive-sink-finish", "data": [
             {"db": "tmp",
              "table": "test",
-             "partition_fields": "exec_group",
+             "partition_fields": "group",
              "partition_values": "gp_001",
              "count": 60,
              "data_date": "2019-07-14",
@@ -55,7 +55,7 @@ def prepare_test_files():
         {"topic": "hive-sink-finish", "data": [
             {"db": "tmp",
              "table": "test",
-             "partition_fields": "exec_group",
+             "partition_fields": "group",
              "partition_values": "gp_002",
              "count": 40,
              "data_date": "2019-07-14",
@@ -95,7 +95,7 @@ class TestKafkaProducerFromMergeFileOperator:
             'HiveSinkFinish': [
                 {'db': 'tmp',
                  'table': 'test',
-                 'partition_fields': 'exec_group'}],
+                 'partition_fields': 'group'}],
             'JobFinish': [
                 {'proj_name': 'test_gp',
                  'is_success': True},
@@ -120,7 +120,7 @@ class TestKafkaProducerFromMergeFileOperator:
                     assert cmp(merge_msgs[0], {
                         'db': 'tmp',
                         'table': 'test',
-                        'partition_fields': 'exec_group',
+                        'partition_fields': 'group',
                         'partition_values': 'gp_001+gp_002',
                         'count': 100,
                         'data_date': '2019-07-14',

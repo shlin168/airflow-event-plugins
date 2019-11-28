@@ -8,11 +8,11 @@ class HiveSinkFinish(Base):
             {   # group 1: produce 1 message
                 'db': 'btmp_cmd',
                 'table': 'test1',
-                'partition_fields': 'exec_group'},
+                'partition_fields': 'group'},
             {   # group 2: produce 1 message
                 'db': 'btmp_cmd',
                 'table': 'test2',
-                'partition_fields': 'timestamp/exec_group'
+                'partition_fields': 'data_date/group'
         ]
     '''
 
