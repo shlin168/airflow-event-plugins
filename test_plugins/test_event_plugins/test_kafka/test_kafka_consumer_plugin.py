@@ -55,17 +55,17 @@ def TestMsg(name, dt):
         msg = FakeKafkaMsg(
                 topic='etl-finish',
                 value={'db': 'db0', 'table': 'table0', 'partition_values': ''})
-        msg.v.update({'exec_date': ts})
+        msg.v.update({'timestamp': ts})
     elif name == 'b':
         msg = FakeKafkaMsg(
                 topic='etl-finish',
                 value={'db': 'db1', 'table': 'table1', 'partition_values': '201907'})
-        msg.v.update({'exec_date': ts})
+        msg.v.update({'timestamp': ts})
     elif name == 'c':
         msg = FakeKafkaMsg(
                 topic='job-finish',
                 value={'job_name': 'jn0', 'is_success': True})
-        msg.v.update({'finish_time': ts})
+        msg.v.update({'timestamp': ts})
     else:
         raise ValueError('not defined message type')
     msg.v = json.dumps(msg.v)

@@ -97,7 +97,7 @@ match_dict = {
         # group 2: produce 1 message to represent that the table is done
         'db': 'db2',
         'table': 'table2',
-        'partition_fields': 'exec_date/exec_group'
+        'partition_fields': 'timestamp/exec_group'
     }],
     ...
 }

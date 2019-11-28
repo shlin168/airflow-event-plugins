@@ -113,8 +113,8 @@ class KafkaSingleMessageHandler(BaseSingleMessageHandler):
                 {'frequency': 'D', 'topic': 'etl-finish', 'db': 'db1', 'table': 'table1',
                     'partition_values': "{{yyyymm|dt.format(format='%Y%m')}}", 'task_id': "etl-finish-tblb"}
             received_msg:
-                {"db":"db1", "table":"table1", "partition_fields":["yyyymm"],
-                    "partition_values":["201906"], "exec_date":1560925430}"""
+                {"db": "db1", "table": "table1", "partition_fields": "yyyymm",
+                    "partition_values": "201906", "timestamp":1560925430}"""
     '''
     class WantedMessage:
 

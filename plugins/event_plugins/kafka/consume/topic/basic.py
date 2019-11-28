@@ -18,7 +18,7 @@ class BasicMessage(object):
                 E.g., [('partition_values', {'yyyymm': '_get_exec_partition'})]
                     the value of partition_values would be rendered, {{ yyyymm }} would be
                     the return value of self._get_exec_partition
-            time_key(str): the key that show the produce time of kafka msg,
+            time_key(str): the key that show the event finish time, won't compare if not given.
                 compare method could be written in JsonMatch class
     '''
 
@@ -67,20 +67,23 @@ class BasicMessage(object):
                              "need to have keys: {}".format(self._get_all_keys()))
         match_handler = self.get_match_handler()
 
-        if (match_handler.match_by_keys(msg, self.wanted_msg, self.match_keys) and
-                match_handler.match_by_tkey(self.time_offset(msg[self.time_key]),
-                                            self.time_offset(receive_dt))):
+        if match_handler.match_by_keys(msg, self.wanted_msg, self.match_keys):
+            if self.time_key is not None and self.time_key not in msg:
+                print("specify time key '{}' in msg for matching".format(self.time_key))
+            elif (self.time_key is None) or \
+                (match_handler.match_by_tkey(self.time_offset(msg[self.time_key]),
+                                             self.time_offset(receive_dt))):
 
-            # return if there's no other keys need to be match
-            if len(self.render_match_keys) == 0:
-                print('match with {}'.format(self.match_keys))
-                return True
+                # return if there's no other keys need to be match
+                if len(self.render_match_keys) == 0:
+                    print('match with {}'.format(self.match_keys))
+                    return True
 
-            # match if there are render keys
-            render_keys = [key for key, _ in self.render_match_keys]
-            if match_handler.match_by_rkeys(msg, self.wanted_msg, render_keys):
-                print('match with {}'.format(self.match_keys + render_keys))
-                return True
+                # match if there are render keys
+                render_keys = [key for key, _ in self.render_match_keys]
+                if match_handler.match_by_rkeys(msg, self.wanted_msg, render_keys):
+                    print('match with {}'.format(self.match_keys + render_keys))
+                    return True
         return False
 
     def timeout(self):

@@ -24,7 +24,7 @@ class Message(BasicMessage):
 
     match_keys = ['db', 'table']
     render_match_keys = [('partition_values', {'yyyymm': '_get_exec_partition'})]
-    time_key = 'exec_date'
+    time_key = 'timestamp'
 
     def __init__(self, wanted_msg):
         super(Message, self).__init__(wanted_msg)

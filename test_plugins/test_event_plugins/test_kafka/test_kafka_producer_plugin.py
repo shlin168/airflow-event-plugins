@@ -16,12 +16,12 @@ file_list = [os.path.join(test_home, 'testa.txt'),
 def prepare_test_files():
     merge_a = [
         {"topic": "job-finish", "data": [
-            {"finish_time": 1564568760,
+            {"timestamp": 1564568760,
              "proj_name": "test_gp",
              "duration_time": 50,
              "is_success": True,
              "job_name": "gp_001"},
-            {"finish_time": 1564569620,
+            {"timestamp": 1564569620,
              "proj_name": "test_ds",
              "duration_time": 100,
              "is_success": True,
@@ -42,12 +42,12 @@ def prepare_test_files():
         }]
     merge_b = [
         {"topic": "job-finish", "data": [
-            {"finish_time": 1564568770,
+            {"timestamp": 1564568770,
              "proj_name": "test_gp",
              "duration_time": 150,
              "is_success": True,
              "job_name": "gp_002"},
-            {"finish_time": 1564569650,
+            {"timestamp": 1564569650,
              "proj_name": "test_ds",
              "duration_time": 200,
              "is_success": True,
@@ -135,14 +135,14 @@ class TestKafkaProducerFromMergeFileOperator:
                     assert len(merge_msgs) == 2
                     assert cmp(merge_msgs[0], {
                         "duration_time": 200,
-                        "finish_time": 1564568770,
+                        "timestamp": 1564568770,
                         "is_success": True,
                         "job_name": "gp_001+gp_002",
                         "proj_name": "test_gp"
                     }) == 0
                     assert cmp(merge_msgs[1], {
                         "duration_time": 300,
-                        "finish_time": 1564569650,
+                        "timestamp": 1564569650,
                         "is_success": True,
                         "job_name": "ds1+ds2",
                         "proj_name": "test_ds"

@@ -1,17 +1,15 @@
 # -*- coding: UTF-8 -*-
+from __future__ import print_function
 import six
 
 import time
 import datetime as dt
 from dateutil.relativedelta import relativedelta
+from dateutil.parser import parse
 from airflow.utils import timezone
 
 '''
 All the time handling stuff in event_plugin are aggreated in this module
-unresolve problem: shelve db has size limit, it will raise
-"Negative size passed to PyString_FromStringAndSize" error if exceed.
-But it only happen in test ... (which use TimeUtils.datetime to patch time)
-codes works fine through ...
 '''
 
 class TimeUtils(object):
@@ -81,10 +79,10 @@ class TimeUtils(object):
     def cvt_datetime2str(cls, base, fmt='%Y-%m-%d %H:%M:%S'):
         '''Convert datetime to string
             Args:
-                base(int | datetime),
-                fmt (str)
+                base(int | datetime): the object to be converted to string
+                fmt (str): output datetime string format
             Returns:
-                string in format
+                string in datetime format or None if parsing error
         '''
         if isinstance(base, int):
             base = dt.datetime.fromtimestamp(base)

@@ -20,7 +20,7 @@ class Message(BasicMessage):
 
     match_keys = ['job_name', 'is_success']
     render_match_keys = []
-    time_key = 'finish_time'
+    time_key = 'timestamp'
 
     def __init__(self, wanted_msg):
         super(Message, self).__init__(wanted_msg)

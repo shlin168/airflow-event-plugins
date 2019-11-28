@@ -88,7 +88,7 @@ class EventMessageCRUD:
         self.source_type = source_type
         self.sensor_name = sensor_name
         # create table if not exist
-        # Base.metadata.create_all(engine)
+        Base.metadata.create_all(engine)
 
     @provide_session
     def initialize(self, msg_list, dt=None, session=None):
