@@ -1,15 +1,15 @@
-import os
+import ConfigParser
 import json
+import os
 import pytz
-from datetime import datetime
 import six
+from datetime import datetime
 from tabulate import tabulate
 
-from sqlalchemy.orm import validates
 from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy import and_
+from sqlalchemy.orm import validates
 
-from airflow.configuration import conf
 from airflow.utils.db import provide_session
 from airflow.models.base import Base
 from airflow.settings import engine
@@ -17,11 +17,12 @@ from airflow.settings import engine
 from event_plugins import factory
 from event_plugins.common.status import DBStatus
 from event_plugins.common.schedule.time_utils import TimeUtils
+from event_plugins.common.storage.db import get_session, STORAGE_CONF
 
 
 class EventMessage(Base):
 
-    __tablename__ = 'event_plugins'
+    __tablename__ = STORAGE_CONF.get("Storage", "table_name")
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -84,18 +85,22 @@ class EventMessage(Base):
 
 class EventMessageCRUD:
 
-    def __init__(self, source_type, sensor_name):
+    @provide_session
+    def __init__(self, source_type, sensor_name, session=None):
         self.source_type = source_type
         self.sensor_name = sensor_name
-        # create table if not exist
-        Base.metadata.create_all(engine)
+        self.session = session
 
-    @provide_session
-    def initialize(self, msg_list, dt=None, session=None):
-        if self.get_sensor_messages(session=session).count() > 0:
+        # create table if not exist
+        if STORAGE_CONF.getboolean("Storage", "create_table_if_not_exist") is True:
+            engine = self.session.get_bind()
+            Base.metadata.create_all(engine)
+
+    def initialize(self, msg_list, dt=None):
+        if self.get_sensor_messages().count() > 0:
             dt = dt or TimeUtils().get_now()
-            self.update_msgs(msg_list, session=session)
-            self.reset_timeout(base_time=dt, session=session)
+            self.update_msgs(msg_list)
+            self.reset_timeout(base_time=dt)
         else:
             for msg in msg_list:
                 str_msg = json.dumps(msg, sort_keys=True)
@@ -108,24 +113,22 @@ class EventMessageCRUD:
                     last_receive_time=None,
                     timeout=self.get_timeout(msg)
                 )
-                session.add(record)
-            session.commit()
+                self.session.add(record)
+            self.session.commit()
 
-    @provide_session
-    def get_sensor_messages(self, session=None):
+    def get_sensor_messages(self):
         ''' get messages of self.sensor_name '''
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         return records
 
-    @provide_session
-    def update_msgs(self, msg_list, session=None):
+    def update_msgs(self, msg_list):
         '''Compare msgs in msg_list to msgs in db. If there are msgs only exist in db,
             we assume that user do not need old msg, it would delete msgs in db, and
             insert new msgs which is not in db.
             Args:
                 msg_list(list of json object): messages that need to be record in db
         '''
-        exist_records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        exist_records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         str_msg_list = map(lambda v: json.dumps(v, sort_keys=True), msg_list)
         del_record_list = filter(lambda r: r.msg not in str_msg_list, exist_records)
         del_ids = map(lambda r: r.id, del_record_list)
@@ -147,11 +150,10 @@ class EventMessageCRUD:
                 last_receive_time=None,
                 timeout=self.get_timeout(new_msg)
             )
-            session.add(record)
-        session.commit()
+            self.session.add(record)
+        self.session.commit()
 
-    @provide_session
-    def reset_timeout(self, base_time=None, session=None):
+    def reset_timeout(self, base_time=None):
         '''Clear last_receive_time and last_receive if base time > timeout of msgs in db
             Args:
                 time(time-aware datetime): base time to handle timeout, use now if not given
@@ -166,7 +168,7 @@ class EventMessageCRUD:
             | a   | D         | None                     |  None         | dt(2019, 6, 16, 23, 59, 59) |
         '''
         base_time = base_time or TimeUtils().get_now()
-        update_records = session.query(EventMessage).filter(
+        update_records = self.session.query(EventMessage).filter(
             and_(
                 EventMessage.name == self.sensor_name,
                 EventMessage.timeout < base_time
@@ -176,7 +178,7 @@ class EventMessageCRUD:
             record.last_receive_time = None
             record.last_receive = None
             record.timeout = self.get_timeout(json.loads(record.msg))
-        session.commit()
+        self.session.commit()
 
     def get_timeout(self, msg):
         '''Get timeout defined by each plugin
@@ -186,32 +188,29 @@ class EventMessageCRUD:
         return factory.plugin_factory(self.source_type) \
                 .msg_handler(msg=msg, mtype='wanted').timeout()
 
-    @provide_session
-    def status(self, session=None):
+    def status(self):
         '''Status of self.sensor_name
             Return(define in status.py):
                 ALL_RECEIVED: if all messages get last_receive and last_receive_time
                 NOT_ALL_RECEIVED: there're messages that haven't gotten received time
         '''
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         for r in records:
             if r.last_receive is None or r.last_receive_time is None:
                 return DBStatus.NOT_ALL_RECEIVED
         return DBStatus.ALL_RECEIVED
 
-    @provide_session
-    def get_unreceived_msgs(self, session=None):
+    def get_unreceived_msgs(self):
         '''
         Return:
             json object list of not-received messages
         '''
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         unreceive_msgs = [json.loads(r.msg) for r in records if r.last_receive is None \
                                                             and r.last_receive_time is None]
         return unreceive_msgs
 
-    @provide_session
-    def have_successed_msgs(self, received_msgs, session=None):
+    def have_successed_msgs(self, received_msgs):
         '''This function is used to skip messages that have received before
             and not timeout. e.g. monthly source.
             Since monthly messages might received more that once within a month
@@ -222,7 +221,7 @@ class EventMessageCRUD:
             Returns:
                 json object list of messages that have received
         '''
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         successed_msgs = [json.loads(r.msg) for r in records if r.last_receive_time is not None \
                                                 and r.last_receive_time < r.timeout]
         successed_but_not_receive = list()
@@ -231,29 +230,26 @@ class EventMessageCRUD:
                 successed_but_not_receive.append(successed)
         return successed_but_not_receive
 
-    @provide_session
-    def update_on_receive(self, match_wanted, receive_msg, session=None):
+    def update_on_receive(self, match_wanted, receive_msg):
         ''' Update last receive time and object when receiving wanted message '''
         str_match_wanted = json.dumps(match_wanted, sort_keys=True)
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         for record in records:
             if record.msg == str_match_wanted:
                 record.last_receive_time = TimeUtils().get_now()
                 record.last_receive = receive_msg
-        session.commit()
+        self.session.commit()
 
-    @provide_session
-    def delete(self, session=None):
+    def delete(self):
         ''' delete all messages rows of self.sensor_name '''
-        session.query(EventMessage) \
+        self.session.query(EventMessage) \
             .filter(EventMessage.name == self.sensor_name) \
             .delete(synchronize_session='fetch')
 
-    @provide_session
-    def tabulate_data(self, threshold=None, tablefmt='fancy_grid', session=None):
+    def tabulate_data(self, threshold=None, tablefmt='fancy_grid'):
         headers = [str(c).split('.')[1] for c in EventMessage.__table__.columns]
         data = list()
-        records = session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
+        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         for r in records:
             rows = list()
             for col in headers:

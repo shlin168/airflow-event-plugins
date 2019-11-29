@@ -25,12 +25,12 @@ If using AIRFLOW, you might have a repository to aggregate all the airflow plugi
 
 ## Requirement
 ### Installation
-* `airflow`
-* `croniter`
-* `python-dateutil`
+* `apache-airflow`
+    * `croniter`
+    * `python-dateutil`
+    * `sqlalchemy`
 * `confluent-kafka`
 * `jinja`
-* `sqlalchemy`
 
 ### Test
 * `pytest`

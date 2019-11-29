@@ -51,3 +51,4 @@ __pycache__
 # test data
 ################
 test_plugins/test_data/*
+!test_plugins/test_data/test_event_plugins.cfg

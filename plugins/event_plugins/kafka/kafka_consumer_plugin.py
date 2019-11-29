@@ -33,6 +33,6 @@ class KafkaConsumerOperator(BaseConsumerOperator):
     def initialize_db_handler(self):
         # Initialize status DB, clear last_receive_time if msg timeout
         rmsgs = self.all_msgs_handler.get_wanted_msgs(render=True)
-        self.db_handler.initialize(rmsgs, session=self.session)
+        self.db_handler.initialize(rmsgs)
         if self.debug_mode:
-            self.log.info(self.db_handler.tabulate_data(session=self.session))
+            self.log.info(self.db_handler.tabulate_data())

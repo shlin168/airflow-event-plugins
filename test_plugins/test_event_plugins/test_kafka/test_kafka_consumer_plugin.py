@@ -1,13 +1,7 @@
 # -*- coding: UTF-8 -*-
-
 import json
 import os
 import pytest
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from airflow.models.base import Base
 
 from event_plugins import factory
 from event_plugins.common.schedule.time_utils import TimeUtils
@@ -17,24 +11,8 @@ from event_plugins.kafka.kafka_handler import KafkaHandler
 from event_plugins.kafka.kafka_connector import KafkaConnector
 
 
-AIRFLOW_HOME = os.environ['AIRFLOW_HOME']
-# engine = create_engine('sqlite:///{home}/unittests.db'.format(home=AIRFLOW_HOME))
-engine = create_engine('sqlite:///:memory:')
-
-# create 'event_plugin' table if not exist
-Base.metadata.create_all(engine)
-
-
 def patch_now(mocker, now):
     mocker.patch.object(TimeUtils, 'get_now', return_value=now)
-
-
-@pytest.fixture()
-def session():
-    session = sessionmaker(bind=engine)()
-    session.execute(Base.metadata.tables['event_plugins'].delete())
-    yield session
-    session.close()
 
 
 class FakeKafkaMsg:
@@ -84,8 +62,7 @@ class TestKafkaConsumerOperator:
                Then timeout of messages would be set to 21:59:59
             2. Task time out and reschedule in execute() is not included here.
     '''
-    @pytest.mark.usefixtures("session")
-    def test_poke_all_D_messages(self, session, mocker):
+    def test_poke_all_D_messages(self, mocker):
         ######################
         #  prepare for test  #
         ######################
@@ -110,8 +87,7 @@ class TestKafkaConsumerOperator:
             poke_interval=2,
             timeout=10,
             mark_success=False,
-            debug_mode=True,
-            session=session
+            debug_mode=True
         )
         # consumer with set_consumer being patch to return None
         consumer = KafkaConnector(broker=None)
@@ -136,7 +112,7 @@ class TestKafkaConsumerOperator:
         # context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
+        assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         # get id of message
         str_a = json.dumps(a, sort_keys=True)
@@ -145,7 +121,7 @@ class TestKafkaConsumerOperator:
         str_c = json.dumps(c, sort_keys=True)
 
         a_id, b_id, c_id = None, None, None
-        for record in operator.db_handler.get_sensor_messages(session=session):
+        for record in operator.db_handler.get_sensor_messages():
             if record.msg == str_a:
                 a_id = record.id
             elif record.msg == str_rb:
@@ -174,11 +150,11 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear the messages in status db from 2019/7/7 since it's 2019/7/8
         # timeout for all messages should be set to 2019/07/08 23:59:59
-        msgs = operator.db_handler.get_sensor_messages(session=session)
+        msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 2
+        assert len(operator.db_handler.get_unreceived_msgs()) == 2
 
         ################################################
         #  situation: received a and b (ALL_RECEIVED)  #
@@ -188,8 +164,7 @@ class TestKafkaConsumerOperator:
         assert is_criteria_met == True
 
 
-    @pytest.mark.usefixtures("session")
-    def test_poke_D_M_messages(self, session, mocker):
+    def test_poke_D_M_messages(self, mocker):
         ######################
         #  prepare for test  #
         ######################
@@ -214,8 +189,7 @@ class TestKafkaConsumerOperator:
             poke_interval=2,
             timeout=10,
             mark_success=False,
-            debug_mode=True,
-            session=session
+            debug_mode=True
         )
 
         # consumer with set_consumer being patch to return None
@@ -240,7 +214,7 @@ class TestKafkaConsumerOperator:
         # context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
+        assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         # get id of message
         str_a = json.dumps(a, sort_keys=True)
@@ -249,7 +223,7 @@ class TestKafkaConsumerOperator:
         str_c = json.dumps(c, sort_keys=True)
 
         a_id, b_id, c_id = None, None, None
-        for record in operator.db_handler.get_sensor_messages(session=session):
+        for record in operator.db_handler.get_sensor_messages():
             if record.msg == str_a:
                 a_id = record.id
             elif record.msg == str_rb:
@@ -271,13 +245,13 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear last_receive of a(D)
         # c(M) is monthly message so the last_receive won't be cleared
-        msgs = operator.db_handler.get_sensor_messages(session=session)
+        msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
         record_b = msgs.filter(EventMessage.id == b_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
         assert record_b.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
+        assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         #####################################
         #  [Time Changed] 2019/07/09 00:15  #
@@ -293,7 +267,7 @@ class TestKafkaConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         # clear last_receive of a(D)
         # b(M) and c(M) are monthly message so the last_receive won't be cleared
-        msgs = operator.db_handler.get_sensor_messages(session=session)
+        msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
         record_c = msgs.filter(EventMessage.id == c_id).first()
         assert record_a.timeout == TimeUtils().datetime(2019, 7, 9, 23, 59, 59)
@@ -310,4 +284,4 @@ class TestKafkaConsumerOperator:
         mocker.patch.object(KafkaConnector, 'get_messages', return_value=[TestMsg('a', fake_now)])
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 2
+        assert len(operator.db_handler.get_unreceived_msgs()) == 2

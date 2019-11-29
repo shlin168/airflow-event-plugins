@@ -2,36 +2,18 @@
 import os
 import pytest
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from airflow.models.base import Base
-
 from event_plugins.common.schedule.time_utils import TimeUtils
+from event_plugins.common.storage.db import get_session, STORAGE_CONF
 
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseConsumerOperator
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseHandler
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseConnector
 
 
+TEST_TABLE_NAME = STORAGE_CONF.get("Storage", "table_name")
+
 def patch_now(mocker, now):
     mocker.patch.object(TimeUtils, 'get_now', return_value=now)
-
-
-AIRFLOW_HOME = os.environ['AIRFLOW_HOME']
-# engine = create_engine('sqlite:///{home}/unittests.db'.format(home=AIRFLOW_HOME))
-engine = create_engine('sqlite:///:memory:')
-
-# create 'event_plugin' table if not exist
-Base.metadata.create_all(engine)
-
-
-@pytest.fixture()
-def session():
-    session = sessionmaker(bind=engine)()
-    session.execute(Base.metadata.tables['event_plugins'].delete())
-    yield session
-    session.close()
 
 
 class TestBaseConsumerOperator:
@@ -43,8 +25,7 @@ class TestBaseConsumerOperator:
             1. Most of base class are interace, we implemented mocks class in mocks_base_plugin.py
             2. Task time out and reschedule in execute() is not included here.
     '''
-    @pytest.mark.usefixtures("session")
-    def test_poke_all_D_messages(self, session, mocker):
+    def test_poke_all_D_messages(self, mocker):
         ######################
         #  prepare for test  #
         ######################
@@ -65,7 +46,6 @@ class TestBaseConsumerOperator:
             timeout=10,
             mark_success=False,
             debug_mode=True,
-            session=session
         )
         # patch factory since 'test' is not one of official event plugins
         mocker.patch('event_plugins.factory.plugin_factory', return_value=MockBaseHandler('test'))
@@ -91,14 +71,14 @@ class TestBaseConsumerOperator:
         # param context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 1
+        assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         ##############################################
         #  situation: received taskC (ALL_RECEIVED)  #
         ##############################################
         mocker.patch.object(MockBaseConnector, 'get_messages', return_value=['taskC'])
         is_criteria_met = operator.poke(context=None, consumer=consumer)
-        print operator.db_handler.tabulate_data(session=session)
+        print operator.db_handler.tabulate_data()
         assert is_criteria_met == True
 
         ###############################
@@ -114,7 +94,7 @@ class TestBaseConsumerOperator:
         # clear the messages in status db from 2019/7/7 since it's 2019/7/8
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session=session)) == 2
+        assert len(operator.db_handler.get_unreceived_msgs()) == 2
 
         #####################################################
         #  situation: received taskA, taskB (ALL_RECEIVED)  #
@@ -123,8 +103,7 @@ class TestBaseConsumerOperator:
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == True
 
-    @pytest.mark.usefixtures("session")
-    def test_poke_D_M_messages(self, session, mocker):
+    def test_poke_D_M_messages(self, mocker):
         ######################
         #  prepare for test  #
         ######################
@@ -145,7 +124,6 @@ class TestBaseConsumerOperator:
             timeout=10,
             mark_success=False,
             debug_mode=True,
-            session=session
         )
         # patch factory since 'test' is not one of official event plugins
         mocker.patch('event_plugins.factory.plugin_factory', return_value=MockBaseHandler('test'))
@@ -171,7 +149,7 @@ class TestBaseConsumerOperator:
         # context can be None if mark_success=False
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session)) == 1
+        assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         ###############################
         #  [Time Changed] 2019/07/08  #
@@ -187,7 +165,7 @@ class TestBaseConsumerOperator:
         # taskC(M) is monthly message so the last_receive won't be cleared
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session)) == 2
+        assert len(operator.db_handler.get_unreceived_msgs()) == 2
 
         ###############################
         #  [Time Changed] 2019/07/09  #
@@ -217,4 +195,4 @@ class TestBaseConsumerOperator:
         # clean all messages since's it both new day and new month
         is_criteria_met = operator.poke(context=None, consumer=consumer)
         assert is_criteria_met == False
-        assert len(operator.db_handler.get_unreceived_msgs(session)) == 2
+        assert len(operator.db_handler.get_unreceived_msgs()) == 2
