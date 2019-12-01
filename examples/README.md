@@ -23,12 +23,12 @@ send_status_email = KafkaStatusEmailOperator(
 )
 ```
 
-5. put the `kafka_event_plugin.py` into DAG folder and start airflow services
-
+5. put the `kafka_event_plugin.py` into DAG folder and start airflow services. DAG should look like picture below but without status.
+![](../images/ExampleDagSuccess.png)
 6. since the `schedule_interval` is `None`, manually trigger DAG from UI.
 
-7. send testing messages
-    1. change value of `timestamp` to the day you're testing
+7. send testing messages and check if status of task in DAG changed.
+    1. change value of `timestamp` and `partition_values` to the day you're testing
     2. produce the messages to kafka
 
 ```json
@@ -39,6 +39,9 @@ send_status_email = KafkaStatusEmailOperator(
 # topic: job-finish
 {"job_name": "jn0", "is_success": true, "duration": 10, "timestamp": 1575190675}
 ```
+
+Note: if there're messages unreceived or not matched. It may look like picture below, and mail will be sent to the address.
+![](../images/ExampleDagFailed.png)
 
 ### More information about the sensor
 ```python
