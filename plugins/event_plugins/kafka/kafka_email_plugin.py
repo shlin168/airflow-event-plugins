@@ -56,6 +56,7 @@ class KafkaStatusEmailOperator(BaseStatusEmailOperator):
         for topic in unreceived_dict:
             unreceived_html += """<h4 style="color: #558B2F"> topic: {t} </h4>{tbl}""".format(
                 t=topic, tbl=unreceived_dict[topic])
+        self.close_connection()
 
         # use old method to compose html string since using 'format' will lead to
         # jinja template confliction

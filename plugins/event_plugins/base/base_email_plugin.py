@@ -1,6 +1,7 @@
 from airflow.utils.decorators import apply_defaults
 from airflow.operators.email_operator import EmailOperator
 
+from event_plugins.common.storage.db import get_session, USE_AIRFLOW_DATABASE
 from event_plugins.common.storage.event_message import EventMessageCRUD
 
 
@@ -15,7 +16,8 @@ class BaseStatusEmailOperator(EmailOperator):
 
     @apply_defaults
     def __init__(self,
-                status_path,
+                source_type,
+                sensor_name,
                 subject=None,
                 html_content=None,
                 threshold=None,
@@ -23,7 +25,8 @@ class BaseStatusEmailOperator(EmailOperator):
         super(BaseStatusEmailOperator, self).__init__(subject=subject,
                                                        html_content=html_content,
                                                        *args, **kwargs)
-        self.db_handler = MessageRecordCRUD(status_path, self.plugin_name)
+        session = get_session()
+        self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
         self.threshold = threshold
         if not self.subject:
             self.subject=self.default_subject
@@ -32,6 +35,7 @@ class BaseStatusEmailOperator(EmailOperator):
 
     def generate_html(self):
         shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')
+        self.close_connection()
         # use old method to compose html string since using 'format' will lead to
         # jinja template confliction
         return """
@@ -47,3 +51,8 @@ class BaseStatusEmailOperator(EmailOperator):
                 </body>
             </html>
         """ % (shelve_db_html)
+
+    def close_connection(self):
+        # close db connection if not using airflow database to store messages status
+        if USE_AIRFLOW_DATABASE is False:
+            self.db_handler.session.close()

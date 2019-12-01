@@ -3,7 +3,8 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from airflow.settings import Session
+from airflow.models.base import Base
+from airflow.settings import Session, engine as airflow_engine
 
 from event_plugins.common.config import read_config
 
@@ -29,7 +30,14 @@ def get_session(sql_alchemy_conn=None):
     if sql_alchemy_conn != '':
         USE_AIRFLOW_DATABASE = False
         engine = create_engine(sql_alchemy_conn)
+        create_table_if_not_exist(engine)
         return sessionmaker(bind=engine)()
     else:
         USE_AIRFLOW_DATABASE = True
+        create_table_if_not_exist(airflow_engine)
         return Session
+
+
+def create_table_if_not_exist(engine):
+    if STORAGE_CONF.getboolean("Storage", "create_table_if_not_exist") is True:
+        Base.metadata.create_all(engine)

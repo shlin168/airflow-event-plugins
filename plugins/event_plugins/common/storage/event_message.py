@@ -10,14 +10,24 @@ from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy import and_
 from sqlalchemy.orm import validates
 
+from airflow.models import Base
 from airflow.utils.db import provide_session
-from airflow.models.base import Base
-from airflow.settings import engine
 
 from event_plugins import factory
 from event_plugins.common.status import DBStatus
 from event_plugins.common.schedule.time_utils import TimeUtils
 from event_plugins.common.storage.db import get_session, STORAGE_CONF
+
+
+def get_string_if_json(msg):
+    if msg is None:
+        return
+    elif isinstance(msg, dict):
+        return json.dumps(msg, sort_keys=True)
+    elif isinstance(msg, six.string_types):
+        return msg
+    else:
+        raise TypeError("msg should be either string or dict type")
 
 
 class EventMessage(Base):
@@ -30,7 +40,7 @@ class EventMessage(Base):
     msg = Column(String)
     source_type = Column(String(32))
     frequency = Column(String(4))
-    last_receive = Column(JSON)
+    last_receive = Column(String)
     last_receive_time = Column(DateTime(timezone=True))
     timeout = Column(DateTime(timezone=True))
 
@@ -41,23 +51,26 @@ class EventMessage(Base):
     def __init__(self, name, msg, source_type, frequency, last_receive, last_receive_time, timeout):
         '''
             name(string): sensor name, to identify different sensors in airflow
-            msg(string|dict): wanted message. json dumps(sort_keys=True) if input type is dict,
-                                              remain input if input type is string(json format).
+            msg(string|dict): store as 'string' type in database
+                wanted message. json dumps(sort_keys=True) if input type is dict,
+                remain input if input type is string(json format).
             source_type(string): consume source name. e.g., kafka
             frequency(string): string such as 'D' or 'M' to show received frequency of message
-            last_receive(json_obj): the last received message
+            last_receive(string|dict|None): store as 'string' type or None in database
+                the last received message. json dumps(sort_keys=True) if input type is dict,
+                remain input if input type is string(can be non-json format) or None.
             last_receive_time(datetime): the last time received message in 'last_receive' column
             timeout(datetime): when will the received message time out
         '''
-        self.msg = self.check_msg(msg)
+        self.msg = self.check_and_get_json_string(msg)
         self.name = name
         self.source_type = source_type
         self.frequency = frequency
-        self.last_receive = last_receive
+        self.last_receive = get_string_if_json(last_receive)
         self.last_receive_time = last_receive_time
         self.timeout = timeout
 
-    def check_msg(self, msg):
+    def check_and_get_json_string(self, msg):
         if isinstance(msg, dict):
             return json.dumps(msg, sort_keys=True)
         elif isinstance(msg, six.string_types):
@@ -91,11 +104,6 @@ class EventMessageCRUD:
         self.sensor_name = sensor_name
         self.session = session
 
-        # create table if not exist
-        if STORAGE_CONF.getboolean("Storage", "create_table_if_not_exist") is True:
-            engine = self.session.get_bind()
-            Base.metadata.create_all(engine)
-
     def initialize(self, msg_list, dt=None):
         if self.get_sensor_messages().count() > 0:
             dt = dt or TimeUtils().get_now()
@@ -103,7 +111,7 @@ class EventMessageCRUD:
             self.reset_timeout(base_time=dt)
         else:
             for msg in msg_list:
-                str_msg = json.dumps(msg, sort_keys=True)
+                str_msg = get_string_if_json(msg)
                 record = EventMessage(
                     name=self.sensor_name,
                     msg=str_msg,
@@ -129,18 +137,18 @@ class EventMessageCRUD:
                 msg_list(list of json object): messages that need to be record in db
         '''
         exist_records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        str_msg_list = map(lambda v: json.dumps(v, sort_keys=True), msg_list)
+        str_msg_list = map(get_string_if_json, msg_list)
         del_record_list = filter(lambda r: r.msg not in str_msg_list, exist_records)
         del_ids = map(lambda r: r.id, del_record_list)
         exist_records.filter(EventMessage.id.in_(del_ids)).delete(synchronize_session='fetch')
 
         new_msgs = list()
         for msg in msg_list:
-            str_msg = json.dumps(msg, sort_keys=True)
+            str_msg = get_string_if_json(msg)
             if str_msg not in [r.msg for r in exist_records]:
                 new_msgs.append(msg)
         for new_msg in new_msgs:
-            str_new_msg = json.dumps(new_msg, sort_keys=True)
+            str_new_msg = get_string_if_json(new_msg)
             record = EventMessage(
                 name=self.sensor_name,
                 msg=str_new_msg,
@@ -232,12 +240,12 @@ class EventMessageCRUD:
 
     def update_on_receive(self, match_wanted, receive_msg):
         ''' Update last receive time and object when receiving wanted message '''
-        str_match_wanted = json.dumps(match_wanted, sort_keys=True)
+        str_match_wanted = get_string_if_json(match_wanted)
         records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         for record in records:
             if record.msg == str_match_wanted:
                 record.last_receive_time = TimeUtils().get_now()
-                record.last_receive = receive_msg
+                record.last_receive = get_string_if_json(receive_msg)
         self.session.commit()
 
     def delete(self):

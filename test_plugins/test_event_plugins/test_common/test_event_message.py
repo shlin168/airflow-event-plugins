@@ -120,23 +120,25 @@ class TestEventMessageCRUD:
 
         # this record is timeout since fake_now > timeout
         msg1 = {"test_memo":"timeout", "frequency":"D", "topic":"etl-finish"}
+        last_receive1 = {'test':1}
         record1 = EventMessage(
             name=TEST_SENSOR_NAME,
             msg=msg1,
             source_type=TEST_SOURCE_TYPE,
             frequency=msg1['frequency'],
-            last_receive={'test':1},
+            last_receive=last_receive1,
             last_receive_time=TimeUtils().datetime(2019, 6, 15),
             timeout=TimeUtils().datetime(2019, 6, 15, 23, 59, 59)
         )
         # this second record is not timeout since fake_now < timeout
         msg2 = {"test_memo":"not_timeout", "frequency":"M", "topic":"etl-finish"}
+        last_receive2 = {'test':2}
         record2 = EventMessage(
             name=TEST_SENSOR_NAME,
             msg=msg2,
             source_type=TEST_SOURCE_TYPE,
             frequency='M',
-            last_receive={'test':2},
+            last_receive=last_receive2,
             last_receive_time=TimeUtils().datetime(2019, 6, 13),
             timeout=TimeUtils().datetime(2019, 6, 30, 23, 59, 59)
         )
@@ -153,7 +155,7 @@ class TestEventMessageCRUD:
         )
         untimeout_record = filter(lambda r: r.msg == json.dumps(msg2, sort_keys=True), records)[0]
         assert (
-            untimeout_record.last_receive == {'test':2} and
+            untimeout_record.last_receive == json.dumps(last_receive2, sort_keys=True) and
             untimeout_record.last_receive_time == TimeUtils().datetime(2019, 6, 13)
         )
 
@@ -306,7 +308,7 @@ class TestEventMessageCRUD:
 
         db.update_on_receive(msg1, msg1)
         record = db.get_sensor_messages().first()
-        assert record.last_receive == msg1
+        assert record.last_receive == json.dumps(msg1, sort_keys=True)
         assert record.last_receive_time == fake_now
 
     @pytest.mark.usefixtures("db")
@@ -361,7 +363,7 @@ class TestEventMessageCRUD:
 ╞══════╪════════╪═══════════════════════════╪═══════════════╪═════════════╪════════════════╪═════════════════════╪═════════════════════╡
 │    1 │ test   │ {"test": "received"}      │ kafka         │ D           │ None           │ None                │ 2019-06-15 23:59:59 │
 ├──────┼────────┼───────────────────────────┼───────────────┼─────────────┼────────────────┼─────────────────────┼─────────────────────┤
-│    2 │ test   │ {"test": "have_received"} │ kafka         │ M           │ {u'test': 2}   │ 2019-06-20 02:00:00 │ 2019-06-30 23:59:59 │
+│    2 │ test   │ {"test": "have_received"} │ kafka         │ M           │ {"test": 2}    │ 2019-06-20 02:00:00 │ 2019-06-30 23:59:59 │
 ╘══════╧════════╧═══════════════════════════╧═══════════════╧═════════════╧════════════════╧═════════════════════╧═════════════════════╛
 """.decode('utf8'))
         assert captured.out == expected_result

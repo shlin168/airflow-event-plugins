@@ -17,7 +17,7 @@ from event_plugins.common.schedule.timeout import TaskTimeout
 from event_plugins.common.schedule.time_utils import TimeUtils
 from event_plugins.common.status import DBStatus
 from event_plugins.common.storage.db import get_session, USE_AIRFLOW_DATABASE
-from event_plugins.common.storage.event_message import EventMessageCRUD, STORAGE_CONF, get_session
+from event_plugins.common.storage.event_message import EventMessageCRUD, STORAGE_CONF
 from event_plugins.common.success.success_mixin import SuccessMixin
 
 
@@ -53,7 +53,6 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         if sensor_name is None:
             sensor_name = ".".join([self.dag.dag_id, self.task_id])
         self.set_mode(mode)
-        self.session = get_session()
         self.set_db_handler(source_type, sensor_name)
         self.set_all_msgs_handler(msgs)
 
@@ -68,7 +67,8 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.mode = mode
 
     def set_db_handler(self, source_type, sensor_name):
-        self.db_handler = EventMessageCRUD(source_type, sensor_name, self.session)
+        session = get_session()
+        self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
 
     def set_all_msgs_handler(self, msgs):
         self.all_msgs_handler = factory.plugin_factory(self.name).all_msgs_handler(msgs)
@@ -159,7 +159,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.conn_handler.close()
         # 2. close db connection if not using airflow database to store messages status
         if USE_AIRFLOW_DATABASE is False:
-            self.session.close()
+            self.db_handler.session.close()
 
     def schedule_next_time(self, seconds):
         # handle different mode: reschedule or poke
