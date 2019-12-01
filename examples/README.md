@@ -1,4 +1,4 @@
-# How to test kafka_event_plugin DAG
+# How to test DAG
 
 ### Modify `kafka_event_plugin.py`
 1. set timezone to your local timezone
@@ -24,7 +24,9 @@ send_status_email = KafkaStatusEmailOperator(
 ```
 
 5. put the `kafka_event_plugin.py` into DAG folder and start airflow services. DAG should look like picture below but without status.
+
 ![](../images/ExampleDagSuccess.png)
+
 6. since the `schedule_interval` is `None`, manually trigger DAG from UI.
 
 7. send testing messages and check if status of task in DAG changed.
