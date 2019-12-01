@@ -7,10 +7,6 @@ import os
 import pytest
 import pytz
 
-from sqlalchemy import and_
-
-from airflow.models.base import Base
-
 from event_plugins.common.schedule.time_utils import TimeUtils
 from event_plugins.common.storage.db import get_session, STORAGE_CONF
 from event_plugins.common.storage.event_message import EventMessage, EventMessageCRUD
@@ -28,16 +24,15 @@ def patch_now(mocker, now):
 @pytest.fixture()
 def db():
     # use source type:kafka and sensor_name:test for testing
-    session = get_session()
-    yield EventMessageCRUD(
-        source_type=TEST_SOURCE_TYPE,
-        sensor_name=TEST_SENSOR_NAME,
-        session=session
-    )
-    # clean the table after every test
-    if TEST_TABLE_NAME in Base.metadata.tables:
-        session.execute(Base.metadata.tables[TEST_TABLE_NAME].delete())
-    session.close()
+    with get_session() as session:
+        yield EventMessageCRUD(
+            source_type=TEST_SOURCE_TYPE,
+            sensor_name=TEST_SENSOR_NAME,
+            session=session
+        )
+        # clear all the rows in the table after every test
+        session.query(EventMessage).delete()
+
 
 @pytest.fixture()
 def msg_list():
@@ -57,6 +52,31 @@ def overwrite_msg_list():
             'partition_values': "", 'task_id': "tblc"},
         {'frequency': 'D', 'topic': 'job-finish', 'job_name': 'jn1', 'task_id': "job1"},
     ]
+
+
+class TestEventMessage:
+
+    @pytest.mark.usefixtures("db", "msg_list")
+    def test_insert_invalid_source_type(self, db, msg_list):
+        db.source_type="not_available_source"
+        with pytest.raises(Exception):
+            db.initialize(msg_list)
+
+    @pytest.mark.usefixtures("db", "msg_list")
+    def test_insert_invalid_frequency(self, db, msg_list):
+        msg_list[0]["frequency"] = 'not_valid'
+        with pytest.raises(Exception):
+            db.initialize(msg_list)
+
+    @pytest.mark.usefixtures("db")
+    def test_non_json_wanted_messages(self, db):
+        with pytest.raises(Exception):
+            db.initialize("non-json string")
+
+    @pytest.mark.usefixtures("db")
+    def test_wanted_messages_none(self, db):
+        with pytest.raises(Exception):
+            db.initialize(None)
 
 
 class TestEventMessageCRUD:
@@ -205,7 +225,7 @@ class TestEventMessageCRUD:
         assert db.status() == DBStatus.NOT_ALL_RECEIVED
 
         # change second record to emulate message received
-        msg2.last_receive = {'test':1}
+        msg2.last_receive = json.dumps({'test':1})
         db.session.commit()
         assert db.get_sensor_messages().count() == 2
         assert db.status() == DBStatus.ALL_RECEIVED

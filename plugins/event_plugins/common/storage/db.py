@@ -1,7 +1,8 @@
+import contextlib
 import os
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 from airflow.models.base import Base
 from airflow.settings import Session, engine as airflow_engine
@@ -24,18 +25,32 @@ else:
 USE_AIRFLOW_DATABASE = None
 
 
+@contextlib.contextmanager
 def get_session(sql_alchemy_conn=None):
+    session = None
     if sql_alchemy_conn is None:
         sql_alchemy_conn = STORAGE_CONF.get("Storage", "sql_alchemy_conn")
     if sql_alchemy_conn != '':
         USE_AIRFLOW_DATABASE = False
         engine = create_engine(sql_alchemy_conn)
         create_table_if_not_exist(engine)
-        return sessionmaker(bind=engine)()
+        session = scoped_session(
+            sessionmaker(autocommit=False,
+                         autoflush=False,
+                         bind=engine,
+                         expire_on_commit=False))
     else:
         USE_AIRFLOW_DATABASE = True
         create_table_if_not_exist(airflow_engine)
-        return Session
+        session = Session
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def create_table_if_not_exist(engine):

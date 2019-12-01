@@ -6,7 +6,7 @@ import six
 from datetime import datetime
 from tabulate import tabulate
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy import and_
 from sqlalchemy.orm import validates
 
@@ -16,7 +16,7 @@ from airflow.utils.db import provide_session
 from event_plugins import factory
 from event_plugins.common.status import DBStatus
 from event_plugins.common.schedule.time_utils import TimeUtils
-from event_plugins.common.storage.db import get_session, STORAGE_CONF
+from event_plugins.common.storage.db import STORAGE_CONF
 
 
 def get_string_if_json(msg):
@@ -36,10 +36,10 @@ class EventMessage(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String)
-    msg = Column(String)
-    source_type = Column(String(32))
-    frequency = Column(String(4))
+    name = Column(String, nullable=False)
+    msg = Column(String, nullable=False)
+    source_type = Column(String(32), nullable=False)
+    frequency = Column(String(4), nullable=False)
     last_receive = Column(String)
     last_receive_time = Column(DateTime(timezone=True))
     timeout = Column(DateTime(timezone=True))

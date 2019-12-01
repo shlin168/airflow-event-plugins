@@ -25,13 +25,16 @@ class BaseStatusEmailOperator(EmailOperator):
         super(BaseStatusEmailOperator, self).__init__(subject=subject,
                                                        html_content=html_content,
                                                        *args, **kwargs)
-        session = get_session()
-        self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
+        self.set_db_handler(source_type, sensor_name)
         self.threshold = threshold
         if not self.subject:
             self.subject=self.default_subject
         if not self.html_content:
             self.html_content = self.generate_html()
+
+    def set_db_handler(self, source_type, sensor_name):
+        with get_session() as session:
+            self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
 
     def generate_html(self):
         shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')
@@ -55,4 +58,4 @@ class BaseStatusEmailOperator(EmailOperator):
     def close_connection(self):
         # close db connection if not using airflow database to store messages status
         if USE_AIRFLOW_DATABASE is False:
-            self.db_handler.session.close()
+            self.db_handler.session.remove()

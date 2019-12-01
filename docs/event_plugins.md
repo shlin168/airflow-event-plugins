@@ -88,7 +88,7 @@ Column description:
 * `msg(string)`: the message that the sensors listen to. It's kafka message in `KafkaConsumerOperator`. we use json type of string to store the information. Check [`KafkaConsumerOperator`](kafka_consumer.md) for the example.
 * `source_type(string)`: only `kafka` now, but add this column for flexibility.
 * `frequency(string)`: the frequency of the event happening. `D` means `Day` and `M` means `Month`.
-* `last_receive(json)`: the last event message received
+* `last_receive(string)`: the last event message received
 * `last_receive_time(datetime)`: the last time event message received
 * `timeout(datetime)`: the time that the value in `last_receive` column would be expired and should be removed.
 

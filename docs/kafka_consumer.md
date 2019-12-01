@@ -17,7 +17,7 @@ kafka_msgs = [
 
 my_consumer = KafkaConsumerOperator(
     task_id='my_consumer',
-    sensor_name=Optional[string], # use dag_id.task_id if not given, it's sensor identification in db.
+    sensor_name=Optional[string], # use dag_id.task_id if not given, it's sensor identification in db, make sure it's unique.
     source_type='kafka',
     broker='localhost:9092',
     group_id='test',

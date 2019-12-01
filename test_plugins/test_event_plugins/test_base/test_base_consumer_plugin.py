@@ -3,7 +3,7 @@ import os
 import pytest
 
 from event_plugins.common.schedule.time_utils import TimeUtils
-from event_plugins.common.storage.db import get_session, STORAGE_CONF
+from event_plugins.common.storage.db import STORAGE_CONF
 
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseConsumerOperator
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseHandler

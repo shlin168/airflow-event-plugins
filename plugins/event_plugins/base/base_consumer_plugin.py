@@ -67,8 +67,8 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.mode = mode
 
     def set_db_handler(self, source_type, sensor_name):
-        session = get_session()
-        self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
+        with get_session() as session:
+            self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
 
     def set_all_msgs_handler(self, msgs):
         self.all_msgs_handler = factory.plugin_factory(self.name).all_msgs_handler(msgs)
@@ -159,7 +159,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.conn_handler.close()
         # 2. close db connection if not using airflow database to store messages status
         if USE_AIRFLOW_DATABASE is False:
-            self.db_handler.session.close()
+            self.db_handler.session.remove()
 
     def schedule_next_time(self, seconds):
         # handle different mode: reschedule or poke
