@@ -10,7 +10,7 @@ class KafkaStatusEmailOperator(BaseStatusEmailOperator):
 
     ui_color = '#7FB0B0'
 
-    plugin_name = 'kafka'
+    source_type = 'kafka'
 
     # if using airflow cli command to run task, dag_run would be None
     default_subject = "[Failed] {{ dag_run.dag_id }} {{ execution_date }}"

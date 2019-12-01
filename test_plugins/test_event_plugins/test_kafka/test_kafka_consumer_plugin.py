@@ -79,7 +79,6 @@ class TestKafkaConsumerOperator:
         operator = KafkaConsumerOperator(
             task_id='test',
             broker=None,
-            source_type='kafka',
             sensor_name="test",
             group_id='test',
             client_id='test',
@@ -181,7 +180,6 @@ class TestKafkaConsumerOperator:
         operator = KafkaConsumerOperator(
             task_id='test',
             broker=None,
-            source_type='kafka',
             sensor_name="test",
             group_id='test',
             client_id='test',

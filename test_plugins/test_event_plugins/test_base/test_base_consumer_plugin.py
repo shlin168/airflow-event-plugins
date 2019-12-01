@@ -39,7 +39,6 @@ class TestBaseConsumerOperator:
         # initial operator
         operator = MockBaseConsumerOperator(
             task_id='test',
-            source_type='base',
             sensor_name="test",
             msgs=wanted_msgs,
             poke_interval=2,
@@ -117,7 +116,6 @@ class TestBaseConsumerOperator:
         # initialize operator
         operator = MockBaseConsumerOperator(
             task_id='test',
-            source_type='base',
             sensor_name="test",
             msgs=wanted_msgs,
             poke_interval=2,

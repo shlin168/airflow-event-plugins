@@ -11,7 +11,7 @@ class KafkaConsumerOperator(BaseConsumerOperator):
 
     ui_color = '#16a085'
 
-    name = "kafka"
+    source_type = 'kafka'
 
     @apply_defaults
     def __init__(self,
@@ -27,7 +27,7 @@ class KafkaConsumerOperator(BaseConsumerOperator):
 
     def initialize_conn_handler(self):
         topics = self.all_msgs_handler.subscribe_topics()
-        self.conn_handler = plugin_factory(self.name).conn_handler(self.broker)
+        self.conn_handler = plugin_factory(self.source_type).conn_handler(self.broker)
         self.conn_handler.set_consumer(self.group_id, self.client_id, topics)
 
     def initialize_db_handler(self):

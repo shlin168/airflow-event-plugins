@@ -26,12 +26,11 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
     ui_color = '#16a085'
     valid_modes = ['poke', 'reschedule']
 
-    name = None
+    source_type = 'base'
 
     @apply_defaults
     def __init__(self,
                  msgs,
-                 source_type,
                  poke_interval,
                  timeout=None,
                  mark_success=False,
@@ -53,7 +52,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         if sensor_name is None:
             sensor_name = ".".join([self.dag.dag_id, self.task_id])
         self.set_mode(mode)
-        self.set_db_handler(source_type, sensor_name)
+        self.set_db_handler(sensor_name)
         self.set_all_msgs_handler(msgs)
 
     def set_mode(self, mode):
@@ -66,12 +65,12 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
                         m=mode))
         self.mode = mode
 
-    def set_db_handler(self, source_type, sensor_name):
+    def set_db_handler(self, sensor_name):
         with get_session() as session:
-            self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
+            self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
 
     def set_all_msgs_handler(self, msgs):
-        self.all_msgs_handler = factory.plugin_factory(self.name).all_msgs_handler(msgs)
+        self.all_msgs_handler = factory.plugin_factory(self.source_type).all_msgs_handler(msgs)
 
     def poke(self, context, consumer):
         # initialize or update messages in status db before consuming messages
@@ -82,7 +81,7 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         received_msgs = list()
         for msg in msg_list:
             try:
-                msg_value = factory.plugin_factory(self.name) \
+                msg_value = factory.plugin_factory(self.source_type) \
                                 .msg_handler(msg=msg, mtype='receive').value()
                 match_wanted, receive_msg = self.all_msgs_handler.match(msg, receive_dt)
             except Exception, e:

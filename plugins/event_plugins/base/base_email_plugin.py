@@ -9,14 +9,13 @@ class BaseStatusEmailOperator(EmailOperator):
 
     ui_color = '#7FB0B0'
 
-    plugin_name = 'base'
+    source_type = 'base'
 
     # if using airflow cli command to run task, dag_run would be None
     default_subject = "[Failed] {{ dag_run.dag_id }} {{ execution_date }}"
 
     @apply_defaults
     def __init__(self,
-                source_type,
                 sensor_name,
                 subject=None,
                 html_content=None,
@@ -25,16 +24,16 @@ class BaseStatusEmailOperator(EmailOperator):
         super(BaseStatusEmailOperator, self).__init__(subject=subject,
                                                        html_content=html_content,
                                                        *args, **kwargs)
-        self.set_db_handler(source_type, sensor_name)
+        self.set_db_handler(sensor_name)
         self.threshold = threshold
         if not self.subject:
             self.subject=self.default_subject
         if not self.html_content:
             self.html_content = self.generate_html()
 
-    def set_db_handler(self, source_type, sensor_name):
+    def set_db_handler(self, sensor_name):
         with get_session() as session:
-            self.db_handler = EventMessageCRUD(source_type, sensor_name, session)
+            self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
 
     def generate_html(self):
         shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')

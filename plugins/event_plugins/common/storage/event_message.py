@@ -92,7 +92,7 @@ class EventMessage(Base):
     @validates('source_type')
     def validate_source_type(self, key, source_type):
         if source_type not in self.available_source_type:
-            raise ValueError("source_type should be in " + str(self.source_type))
+            raise ValueError("source_type {} not in {}".format(source_type, self.available_source_type))
         return source_type
 
 

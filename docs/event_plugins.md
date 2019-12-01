@@ -73,7 +73,9 @@ There would be a `timeout` parameter for `msg(sensor)`. If it didn't get all eve
 #### storage
 [`event_plugins/common/storage/event_message.py`](../plugins/event_plugins/common/storage/event_message.py)
 
-All the event message would be stored in database. It uses the same database with airflow if not specified `session` parameter in operator. (table name: `event_plugins`)
+* All the event message would be stored in database. It uses the same database with airflow if not given other database. (default table name: `airflow_event_plugins`)
+* Default setting config: [`event_plugins/common/storage/default.cfg`](../plugins/event_plugins/common/storage/default.cfg)
+Modify default config (not recommended) or copy this file to other places and set `AIRFLOW_EVENT_PLUGINS_CONFIG` environment variable for the location of your config. `default.cfg` is only used when `AIRFLOW_EVENT_PLUGINS_CONFIG` is not set ([`event_plugins/common/storage/db.py`](../plugins/event_plugins/common/storage/db.py))
 > `KafkaStatusEmailOperator` will send mail with below table to show the status of each event message
 
 | id | name | msg             | source_type | frequency | last_receive    | last_receive_time   | timeout             |
@@ -92,4 +94,5 @@ Column description:
 * `last_receive_time(datetime)`: the last time event message received
 * `timeout(datetime)`: the time that the value in `last_receive` column would be expired and should be removed.
 
-Note: We used to use `shelve db` to store event records for each `KafkaConsumerOperator`. However, if using `CeleryExecutor` with Celery workers (multiple machines), the task might be executed in different machine each time. It's not feasible to store the status in local files. So we change to use `sqlalchemy` to store and manipulate the records in database, just like how airflow control the status of tasks in DAGs.
+#### Note
+We used to use `shelve db` to store event records for each `KafkaConsumerOperator`. However, if using `CeleryExecutor` with Celery workers (multiple machines), the task might be executed in different machine each time. It's not feasible to store the status in local files. So we change to use `sqlalchemy` to store and manipulate the records in database, just like how airflow control the status of tasks in DAGs.

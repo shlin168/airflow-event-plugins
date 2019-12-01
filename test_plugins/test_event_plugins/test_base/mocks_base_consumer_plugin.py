@@ -11,7 +11,7 @@ from event_plugins.base.base_consumer_plugin import BaseConsumerOperator
 
 class MockBaseConsumerOperator(BaseConsumerOperator):
 
-    name = "test"
+    source_type = "base"
 
     @apply_defaults
     def __init__(self,
@@ -20,10 +20,10 @@ class MockBaseConsumerOperator(BaseConsumerOperator):
         super(MockBaseConsumerOperator, self).__init__(*args, **kwargs)
 
     def set_all_msgs_handler(self, msgs):
-        self.all_msgs_handler = MockBaseHandler('test').all_msgs_handler(msgs)
+        self.all_msgs_handler = MockBaseHandler(self.source_type).all_msgs_handler(msgs)
 
     def initialize_conn_handler(self):
-        self.conn_handler = MockBaseHandler('test').conn_handler()
+        self.conn_handler = MockBaseHandler(self.source_type).conn_handler()
 
 
 class MockBaseConnector(BaseConnector):
