@@ -46,6 +46,7 @@ Note: if there're messages unreceived or not matched. It may look like picture b
 ![](../images/ExampleDagFailed.png)
 
 ### More information about the sensor
+Check the execution workflow in [KafkaComsumerOperator](../docs/kafka_consumer.md#DAG-flow-example)
 ```python
 # kafka sensor
 my_consumer = KafkaConsumerOperator(
@@ -66,7 +67,7 @@ my_consumer = KafkaConsumerOperator(
     # the frequency to start kafka consumer and listening for messages
     poke_interval=10,
 
-    # seconds, if not receiving messages within this peroids, it would timeout and mark the task failed
+    # ttl in seconds, if not receiving messages, it would timeout and mark the task failed. crontab string is also available. e.g., "0 22 * * *" for daily triggered DAG
     timeout=120,
 
     # marking dummy tasks success or not

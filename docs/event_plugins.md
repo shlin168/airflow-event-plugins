@@ -54,6 +54,8 @@ Now we develop a sensor that will listen to 3 messages, and with 3 dummy task be
                     | (dummy) |
                     ╘═════════╛
 ```
+#### execution workflow
+Check the execution workflow in [KafkaComsumerOperator](kafka_consumer.md#DAG-flow-example)
 
 #### scheduler concept
 In Airflow, scheduler's job can be devided into two parts:
