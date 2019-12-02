@@ -23,6 +23,11 @@ If using AIRFLOW, you might have a repository to aggregate all the airflow plugi
     * [KafkaProducerFromFileOperator](docs/kafka_producer.md#KafkaProducerFromFileOperator)
     * [KafkaProducerFromMergeFileOperator](docs/kafka_producer.md#KafkaProducerFromMergeFileOperator)
 
+## How it looks like in DAG
+[check the example](examples/)
+
+![](images/ExampleDagSuccess.png)
+
 ## Requirement
 ### Installation
 * `apache-airflow`
