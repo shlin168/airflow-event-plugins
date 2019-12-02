@@ -11,6 +11,8 @@ cp -r event_plugins $AIRFLOW_HOME/plugins
 If using AIRFLOW, you might have a repository to aggregate all the airflow plugins developed by all the developers. It's recommended to use different folders to store different types of plugins
 
 ## Available plugins
+> Only supports Python 2
+
 * [Event Plugins](docs/event_plugins.md)
     * [KafkaConsumerOperator](docs/kafka_consumer.md): Works as a `Airflow Sensor` that can define multiple events to trigger jobs afterwards. It use dummy tasks to show the status of each events.
 ### Available Operators
@@ -55,5 +57,9 @@ If using AIRFLOW, you might have a repository to aggregate all the airflow plugi
 ```
 
 ## TODO
-* add kafka integration test with DAG
-* add images and more texts for detailed introduction
+* Maybe use unittest instead of pytest to follow testing framework in airflow ...
+* Add more unit tests for error handling and some operators
+* Add integration tests with DAG
+* Support Python 3
+* Event plugins with other source types
+* Event plugins with multiple source types
