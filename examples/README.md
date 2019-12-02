@@ -1,37 +1,47 @@
-# How to test DAG
+# How to test example DAG
 
-### Modify `kafka_event_plugin.py`
-1. set timezone to your local timezone
-```python
-local_tz = pendulum.timezone("<local timezone>")
-```
-2. set kafka broker
-```python
-broker = 'localhost:9092'
-```
+1. Set plugins<br/>
+Copy [`event_plugins`](plugins/) into `$AIRFLOW_HOME/plugins` folder.
 
-3. create `etl-finish` and `job-finish` topic in kafka
+2. Set example DAG<br/>
+Copy `kafka_event_plugin.py` into `$AIRFLOW_HOME/dags` folder and modify.
+    1. Set timezone to local timezone
+    ```python
+    local_tz = pendulum.timezone("<local timezone>")
+    ```
+    2. Set kafka broker
+    ```python
+    broker = 'localhost:9092'
+    ```
+    3. Change `<email address>` in `KafkaStatusEmailOperator`
+    > also need to set `smtp` server in `$AIRFLOW_HOME/airflow.cfg`
+    ```python
+    send_status_email = KafkaStatusEmailOperator(
+        task_id="send_status_mail",
+        sensor_name="kafka_trigger_test.my_consumer",
+        to="<email address>",
+        trigger_rule=TriggerRule.ALL_FAILED
+    )
+    ```
 
-4. change `<email address>` in `KafkaStatusEmailOperator`
-> also need to set `smtp` server in `airflow.cfg`
-```python
-send_status_email = KafkaStatusEmailOperator(
-    task_id="send_status_mail",
-    sensor_name="kafka_trigger_test.my_consumer",
-    to="<email address>",
-    trigger_rule=TriggerRule.ALL_FAILED
-)
-```
+3. Create `etl-finish` and `job-finish` topic in kafka (or modify value of `topic` field within wanted messages in `kafka_event_plugin.py`)
 
-5. put the `kafka_event_plugin.py` into DAG folder and start airflow services. DAG should look like picture below but without status.
+4. Set config for event plugins<br/>
+    1. Copy [`event_plugins/common/storage/default.cfg`](../plugins/event_plugins/common/storage/default.cfg) to your config folder and modify the setting if needed. e.g., set `create_table_if_not_exist = True` if you want event_plugins to automatically create table if not exists.
+    2. Set `AIRFLOW_EVENT_PLUGINS_CONFIG` environment variable to the location of config. (Or directly modify `default.cfg` which is not recommended)
+    ```shell
+    export AIRFLOW_EVENT_PLUGINS_CONFIG=<your config>
+    ```
+
+5. Start airflow services. DAG should look like picture below but without status.
 
 ![](../images/ExampleDagSuccess.png)
 
-6. since the `schedule_interval` is `None`, manually trigger DAG from UI.
+6. Since `schedule_interval` is `None` in example DAG, manually trigger DAG from UI.
 
-7. send testing messages and check if status of task in DAG changed.
-    1. change value of `timestamp` and `partition_values` to the day you're testing
-    2. produce the messages to kafka
+7. Modify and send test messages.
+    1. Change value of `timestamp` and `partition_values` to the day of execution
+    2. Produce the messages to kafka, check if status of task in DAG changed.
 
 ```json
 # topic: etl-finish
