@@ -1,7 +1,9 @@
-# Airflow Plugins
-> Default airflow plugins are in `$AIRFLOW_HOME/plugins` folder (path is configured in `airflow.cfg`)
+# Airflow Event Plugins For Kafka
+This repository aimed to aggregate airflow plugins developed based on some specific ETL scenarios in the company within `plugins` folder, but only `event_plugins` with kafka and some related kafka operators available so far. Check [Event Plugins](docs/event_plugins.md) for more design details.<br/>
+> To be short, the task in DAG can be triggered by multiple kafka messages and show status in UI. Check [example DAG](examples/)
 
 ## Usage
+> Default airflow plugins are in `$AIRFLOW_HOME/plugins` folder (path is configured in `airflow.cfg`)
 1. copy needed plugins within [plugins](plugins/) folder to `$AIRFLOW_HOME/plugins` folder. e.g.,
 ```
 cp -r event_plugins $AIRFLOW_HOME/plugins
