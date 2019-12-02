@@ -25,7 +25,6 @@ else:
 USE_AIRFLOW_DATABASE = None
 
 
-@contextlib.contextmanager
 def get_session(sql_alchemy_conn=None):
     session = None
     if sql_alchemy_conn is None:
@@ -43,14 +42,21 @@ def get_session(sql_alchemy_conn=None):
         USE_AIRFLOW_DATABASE = True
         create_table_if_not_exist(airflow_engine)
         session = Session
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    return session
+
+
+def db_commit(func):
+    def _db_commit(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+            session = args[0].session
+            session.commit()
+        except:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+    return _db_commit
 
 
 def create_table_if_not_exist(engine):

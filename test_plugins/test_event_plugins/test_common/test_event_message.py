@@ -21,18 +21,28 @@ TEST_TABLE_NAME = STORAGE_CONF.get("Storage", "table_name")
 def patch_now(mocker, now):
     mocker.patch.object(TimeUtils, 'get_now', return_value=now)
 
+def db_commit_without_close(session):
+    ''' not closing connection here (close in fixture) '''
+    try:
+        session.commit()
+    except:
+        session.rollback()
+        raise
+
+
 @pytest.fixture()
 def db():
     # use source type:kafka and sensor_name:test for testing
-    with get_session() as session:
-        yield EventMessageCRUD(
-            source_type=TEST_SOURCE_TYPE,
-            sensor_name=TEST_SENSOR_NAME,
-            session=session
-        )
-        # clear all the rows in the table after every test
-        session.query(EventMessage).delete()
-
+    session = get_session()
+    yield EventMessageCRUD(
+        source_type=TEST_SOURCE_TYPE,
+        sensor_name=TEST_SENSOR_NAME,
+        session=session
+    )
+    # clear all the rows in the table after every test
+    session.query(EventMessage).delete()
+    db_commit_without_close(session)
+    session.close()
 
 @pytest.fixture()
 def msg_list():
@@ -207,7 +217,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 30, 23, 59, 59)
         )
         db.session.add_all([record1, record2])
-        db.session.commit()
+        db_commit_without_close(db.session)
         assert db.get_sensor_messages().count() == 2
         assert db.status() == DBStatus.NOT_ALL_RECEIVED
 
@@ -220,19 +230,20 @@ class TestEventMessageCRUD:
                 msg2_id = record.id
         msg2 = records.filter(EventMessage.id == msg2_id).first()
         msg2.last_receive_time = TimeUtils().datetime(2019, 6, 13)
-        db.session.commit()
+        db_commit_without_close(db.session)
         assert db.get_sensor_messages().count() == 2
         assert db.status() == DBStatus.NOT_ALL_RECEIVED
 
         # change second record to emulate message received
         msg2.last_receive = json.dumps({'test':1})
-        db.session.commit()
+        db_commit_without_close(db.session)
         assert db.get_sensor_messages().count() == 2
         assert db.status() == DBStatus.ALL_RECEIVED
 
         # if receive zero value as message, it is RECEIVED when checking status
         # TODO this might change since only json format is valid message so far
         msg2.last_receive = 0
+        db_commit_without_close(db.session)
         assert db.status() == DBStatus.ALL_RECEIVED
 
     @pytest.mark.usefixtures("db")
@@ -259,7 +270,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 30, 23, 59, 59)
         )
         db.session.add_all([record1, record2])
-        db.session.commit()
+        db_commit_without_close(db.session)
 
         # unreceived: last_receive_time and last_receive are both NONE
         unreceived_msg = db.get_unreceived_msgs()[0]
@@ -301,7 +312,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 30, 23, 59, 59)
         )
         db.session.add_all([record1, record2, record3])
-        db.session.commit()
+        db_commit_without_close(db.session)
 
         # have successed: last_receive_time is not None and last_recieve_time < timeout
         have_successed = db.have_successed_msgs(received_msgs)
@@ -324,7 +335,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 15, 23, 59, 59)
         )
         db.session.add(record1)
-        db.session.commit()
+        db_commit_without_close(db.session)
 
         db.update_on_receive(msg1, msg1)
         record = db.get_sensor_messages().first()
@@ -344,7 +355,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 15, 23, 59, 59)
         )
         db.session.add(record1)
-        db.session.commit()
+        db_commit_without_close(db.session)
         assert db.get_sensor_messages().count() == 1
         db.delete()
         assert db.get_sensor_messages().count() == 0
@@ -372,7 +383,7 @@ class TestEventMessageCRUD:
             timeout=TimeUtils().datetime(2019, 6, 30, 23, 59, 59)
         )
         db.session.add_all([record1, record2])
-        db.session.commit()
+        db_commit_without_close(db.session)
 
         result = db.tabulate_data()
         print(result)

@@ -66,8 +66,8 @@ class BaseConsumerOperator(BaseOperator, SuccessMixin, SkipMixin):
         self.mode = mode
 
     def set_db_handler(self, sensor_name):
-        with get_session() as session:
-            self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
+        session = get_session()
+        self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
 
     def set_all_msgs_handler(self, msgs):
         self.all_msgs_handler = factory.plugin_factory(self.source_type).all_msgs_handler(msgs)

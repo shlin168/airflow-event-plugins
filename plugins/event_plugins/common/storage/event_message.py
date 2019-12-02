@@ -16,7 +16,7 @@ from airflow.utils.db import provide_session
 from event_plugins import factory
 from event_plugins.common.status import DBStatus
 from event_plugins.common.schedule.time_utils import TimeUtils
-from event_plugins.common.storage.db import STORAGE_CONF
+from event_plugins.common.storage.db import STORAGE_CONF, db_commit
 
 
 def get_string_if_json(msg):
@@ -104,6 +104,7 @@ class EventMessageCRUD:
         self.sensor_name = sensor_name
         self.session = session
 
+    @db_commit
     def initialize(self, msg_list, dt=None):
         if self.get_sensor_messages().count() > 0:
             dt = dt or TimeUtils().get_now()
@@ -122,13 +123,13 @@ class EventMessageCRUD:
                     timeout=self.get_timeout(msg)
                 )
                 self.session.add(record)
-            self.session.commit()
 
     def get_sensor_messages(self):
         ''' get messages of self.sensor_name '''
         records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
         return records
 
+    @db_commit
     def update_msgs(self, msg_list):
         '''Compare msgs in msg_list to msgs in db. If there are msgs only exist in db,
             we assume that user do not need old msg, it would delete msgs in db, and
@@ -159,8 +160,8 @@ class EventMessageCRUD:
                 timeout=self.get_timeout(new_msg)
             )
             self.session.add(record)
-        self.session.commit()
 
+    @db_commit
     def reset_timeout(self, base_time=None):
         '''Clear last_receive_time and last_receive if base time > timeout of msgs in db
             Args:
@@ -186,7 +187,6 @@ class EventMessageCRUD:
             record.last_receive_time = None
             record.last_receive = None
             record.timeout = self.get_timeout(json.loads(record.msg))
-        self.session.commit()
 
     def get_timeout(self, msg):
         '''Get timeout defined by each plugin
@@ -238,6 +238,7 @@ class EventMessageCRUD:
                 successed_but_not_receive.append(successed)
         return successed_but_not_receive
 
+    @db_commit
     def update_on_receive(self, match_wanted, receive_msg):
         ''' Update last receive time and object when receiving wanted message '''
         str_match_wanted = get_string_if_json(match_wanted)
@@ -246,8 +247,8 @@ class EventMessageCRUD:
             if record.msg == str_match_wanted:
                 record.last_receive_time = TimeUtils().get_now()
                 record.last_receive = get_string_if_json(receive_msg)
-        self.session.commit()
 
+    @db_commit
     def delete(self):
         ''' delete all messages rows of self.sensor_name '''
         self.session.query(EventMessage) \

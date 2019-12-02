@@ -32,8 +32,8 @@ class BaseStatusEmailOperator(EmailOperator):
             self.html_content = self.generate_html()
 
     def set_db_handler(self, sensor_name):
-        with get_session() as session:
-            self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
+        session = get_session()
+        self.db_handler = EventMessageCRUD(self.source_type, sensor_name, session)
 
     def generate_html(self):
         shelve_db_html = self.db_handler.tabulate_data(threshold=self.threshold, tablefmt='html')
