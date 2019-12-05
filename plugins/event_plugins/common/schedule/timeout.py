@@ -34,11 +34,11 @@ class TaskTimeout(LoggingMixin):
             # adjust the logic in airflow
             time_delta = TimeUtils().time_delta(context['next_execution_date'],
                                                 context['execution_date'])
-            self.execution_date = context['next_execution_date']
+            self.execution_date = TimeUtils().cvt_if_pendulumdt2dt(context['next_execution_date'])
             self.next_execution_date = self.execution_date + time_delta
         else:
             # manual task
-            self.execution_date = context['execution_date']
+            self.execution_date = TimeUtils().cvt_if_pendulumdt2dt(context['execution_date'])
 
         self.set_timeout_dt()
         self.poke_interval = poke_interval

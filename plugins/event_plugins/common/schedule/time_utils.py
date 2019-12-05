@@ -9,7 +9,7 @@ import six
 import time
 
 from airflow.utils import timezone
-from airflow.settings import TIMEZONE
+from airflow.settings import TIMEZONE as AIRFLOW_TIMEZONE
 
 from event_plugins.common.storage.db import STORAGE_CONF
 
@@ -19,7 +19,7 @@ if STORAGE_CONF.get("Timezone", "timezone") is not None:
     AIRFLOW_EVENT_PLUGINS_TIMEZONE = pendulum.timezone(STORAGE_CONF.get("Timezone", "timezone"))
 else:
     # use timezone in airflow if not set
-    AIRFLOW_EVENT_PLUGINS_TIMEZONE = TIMEZONE
+    AIRFLOW_EVENT_PLUGINS_TIMEZONE = AIRFLOW_TIMEZONE
 
 
 '''
@@ -33,6 +33,38 @@ class TimeUtils(object):
     def datetime(cls, *args, **kwargs):
         # TODO: using timezone.datetime from airflow
         return dt.datetime(*args, **kwargs)
+
+    def cvt_if_pendulumdt2dt(cls, base):
+        '''Convert to datetime object if it's pendulum datetime
+            Args:
+                base (pendumlum datetime | time-aware/naive datetime)
+            Returns:
+                time-aware/naive datetime object of input
+            Notice:
+                If airflow trigger a scheduled task,
+                    type(context['execution_date']) = <pendulum.pendulum.Pendulum>
+                    type(context['next_execution_date'] = <datetime.datetime>
+                If airflow trigger a manual task,
+                    type(context['execution_date']) = <pendulum.pendulum.Pendulum>
+                    type(context['next_execution_date']) = <pendulum.pendulum.Pendulum>
+                Event plugins use datetime.datetime. which gets wrong in datetime comparison
+                for computing timeout in manual task ...
+                ---
+                2019-12-05 20:40:20.000000+00:00 <datetime.datetime>
+                2019-12-02T20:40:20.000000+00:00 <pendulum.pendulum.Pendulum>
+                ---
+        '''
+        if isinstance(base, pendulum.pendulum.Pendulum):
+            if base.tzinfo is not None:
+                base_tz = base.tzinfo
+                return dt.datetime.fromtimestamp(base.timestamp()).replace(tzinfo=base_tz)
+            else:
+                return dt.datetime.fromtimestamp(base.timestamp())
+        elif isinstance(base, dt.date) or isinstance(base, dt.datetime):
+            return base
+        else:
+            print(type(base))
+            raise TypeError
 
     def is_naive(cls, base):
         return timezone.is_naive(base)
