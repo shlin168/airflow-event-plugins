@@ -1,32 +1,53 @@
 # -*- coding: UTF-8 -*-
 from __future__ import print_function
-import six
 
-import time
 import datetime as dt
 from dateutil.relativedelta import relativedelta
 from dateutil.parser import parse
+import pendulum
+import six
+import time
+
 from airflow.utils import timezone
+from airflow.settings import TIMEZONE
+
+from event_plugins.common.storage.db import STORAGE_CONF
+
+
+AIRFLOW_EVENT_PLUGINS_TIMEZONE = pendulum.timezone('UTC')
+if STORAGE_CONF.get("Timezone", "timezone") is not None:
+    AIRFLOW_EVENT_PLUGINS_TIMEZONE = pendulum.timezone(STORAGE_CONF.get("Timezone", "timezone"))
+else:
+    # use timezone in airflow if not set
+    AIRFLOW_EVENT_PLUGINS_TIMEZONE = TIMEZONE
+
 
 '''
-All the time handling stuff in event_plugin are aggreated in this module
+All the time and timezone handling stuff are aggreated in this module
 '''
-
 class TimeUtils(object):
 
-    def get_now(cls, tz=None):
+    def get_now(cls, tz=AIRFLOW_EVENT_PLUGINS_TIMEZONE):
         return cls.make_aware(dt.datetime.now(), tz)
 
     def datetime(cls, *args, **kwargs):
         # TODO: using timezone.datetime from airflow
         return dt.datetime(*args, **kwargs)
 
-    def make_aware(cls, base, tz=None):
+    def is_naive(cls, base):
+        return timezone.is_naive(base)
+
+    def make_naive(cls, base, tz=AIRFLOW_EVENT_PLUGINS_TIMEZONE):
+        if cls.is_naive(base):
+            return base
+        return timezone.make_naive(base, tz)
+
+    def make_aware(cls, base, tz=AIRFLOW_EVENT_PLUGINS_TIMEZONE):
         ''' Add timezone '''
-        if timezone.is_naive(base):
+        if cls.is_naive(base):
             return timezone.make_aware(base, tz)
         else:
-            return timezone.make_aware(timezone.make_naive(base), tz)
+            return timezone.make_aware(cls.make_naive(base), tz)
 
     def add_seconds(cls, base, seconds, fmt="%Y-%m-%d %H:%M:%S"):
         '''Add offset to time

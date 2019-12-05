@@ -47,9 +47,9 @@ def get_session(sql_alchemy_conn=None):
 
 def db_commit(func):
     def _db_commit(*args, **kwargs):
+        session = args[0].session
         try:
             func(*args, **kwargs)
-            session = args[0].session
             session.commit()
         except:
             session.rollback()

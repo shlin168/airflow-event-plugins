@@ -4,7 +4,8 @@ import os
 import pytest
 
 from event_plugins import factory
-from event_plugins.common.schedule.time_utils import TimeUtils
+from event_plugins.common.schedule.time_utils import TimeUtils, AIRFLOW_EVENT_PLUGINS_TIMEZONE
+from event_plugins.common.storage.db import get_session
 from event_plugins.common.storage.event_message import EventMessage
 from event_plugins.kafka.kafka_consumer_plugin import KafkaConsumerOperator
 from event_plugins.kafka.kafka_handler import KafkaHandler
@@ -28,7 +29,7 @@ class FakeKafkaMsg:
 
 
 def TestMsg(name, dt):
-    ts = int((dt - TimeUtils().datetime(1970, 1, 1)).total_seconds())
+    ts = int((dt - TimeUtils().datetime(1970, 1, 1, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)).total_seconds())
     if name == 'a':
         msg = FakeKafkaMsg(
                 topic='etl-finish',
@@ -62,6 +63,12 @@ class TestKafkaConsumerOperator:
                Then timeout of messages would be set to 21:59:59
             2. Task time out and reschedule in execute() is not included here.
     '''
+    def teardown_method(self, method):
+        session = get_session()
+        session.query(EventMessage).delete()
+        session.commit()
+        session.close()
+
     def test_poke_all_D_messages(self, mocker):
         ######################
         #  prepare for test  #
@@ -94,9 +101,9 @@ class TestKafkaConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/07  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0))
-        fake_now = TimeUtils.get_now()
-        assert fake_now == TimeUtils().datetime(2019, 7, 7, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        fake_now = TimeUtils().get_now()
+        assert fake_now == TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         # Initializing connection is set in execute function,
         # but need to invoke here for poke to work
@@ -138,9 +145,9 @@ class TestKafkaConsumerOperator:
         #####################################
         #  [Time Changed] 2019/07/08 00:15  #
         #####################################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 0, 15, 0))
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
         fake_now = TimeUtils().get_now()
-        assert fake_now == TimeUtils().datetime(2019, 7, 8, 0, 15, 0)
+        assert fake_now == TimeUtils().datetime(2019, 7, 8, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ##############################################
         #  situation: received c (NOT_ALL_RECEIVED)  #
@@ -151,7 +158,7 @@ class TestKafkaConsumerOperator:
         # timeout for all messages should be set to 2019/07/08 23:59:59
         msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
-        assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
+        assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
         assert is_criteria_met == False
         assert len(operator.db_handler.get_unreceived_msgs()) == 2
 
@@ -196,9 +203,9 @@ class TestKafkaConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/07  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0))
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
         fake_now = TimeUtils().get_now()
-        assert fake_now == TimeUtils().datetime(2019, 7, 7, 8, 0, 0)
+        assert fake_now == TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ####################################################
         #  situation: received a and c (NOT_ALL_RECEIVED)  #
@@ -232,9 +239,9 @@ class TestKafkaConsumerOperator:
         #####################################
         #  [Time Changed] 2019/07/08 00:15  #
         #####################################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 0, 15, 0))
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
         fake_now = TimeUtils().get_now()
-        assert fake_now == TimeUtils().datetime(2019, 7, 8, 0, 15, 0)
+        assert fake_now == TimeUtils().datetime(2019, 7, 8, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ##############################################
         #  situation: received b (NOT_ALL_RECEIVED)  #
@@ -246,17 +253,17 @@ class TestKafkaConsumerOperator:
         msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
         record_b = msgs.filter(EventMessage.id == b_id).first()
-        assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59)
-        assert record_b.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59)
+        assert record_a.timeout == TimeUtils().datetime(2019, 7, 8, 23, 59, 59, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
+        assert record_b.timeout== TimeUtils().datetime(2019, 7, 31, 23, 59, 59, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
         assert is_criteria_met == False
         assert len(operator.db_handler.get_unreceived_msgs()) == 1
 
         #####################################
         #  [Time Changed] 2019/07/09 00:15  #
         #####################################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 9, 0, 15, 0))
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 9, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
         fake_now = TimeUtils().get_now()
-        assert fake_now == TimeUtils().datetime(2019, 7, 9, 0, 15, 0)
+        assert fake_now == TimeUtils().datetime(2019, 7, 9, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ##############################################
         #  situation: received a (ALL_RECEIVED)  #
@@ -268,16 +275,16 @@ class TestKafkaConsumerOperator:
         msgs = operator.db_handler.get_sensor_messages()
         record_a = msgs.filter(EventMessage.id == a_id).first()
         record_c = msgs.filter(EventMessage.id == c_id).first()
-        assert record_a.timeout == TimeUtils().datetime(2019, 7, 9, 23, 59, 59)
-        assert record_c.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59)
+        assert record_a.timeout == TimeUtils().datetime(2019, 7, 9, 23, 59, 59, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
+        assert record_c.timeout == TimeUtils().datetime(2019, 7, 31, 23, 59, 59, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
         assert is_criteria_met == True
 
         #####################################
         #  [Time Changed] 2019/08/01 00:15  #
         #####################################
-        patch_now(mocker, TimeUtils().datetime(2019, 8, 1, 0, 15, 0))
+        patch_now(mocker, TimeUtils().datetime(2019, 8, 1, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
         fake_now = TimeUtils().get_now()
-        assert fake_now == TimeUtils().datetime(2019, 8, 1, 0, 15, 0)
+        assert fake_now == TimeUtils().datetime(2019, 8, 1, 0, 15, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         mocker.patch.object(KafkaConnector, 'get_messages', return_value=[TestMsg('a', fake_now)])
         is_criteria_met = operator.poke(context=None, consumer=consumer)

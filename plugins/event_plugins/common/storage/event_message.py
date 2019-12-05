@@ -1,17 +1,17 @@
 import ConfigParser
 import json
 import os
-import pytz
 import six
 from datetime import datetime
 from tabulate import tabulate
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String
 from sqlalchemy import and_
 from sqlalchemy.orm import validates
 
 from airflow.models import Base
 from airflow.utils.db import provide_session
+from airflow.utils.sqlalchemy import UtcDateTime
 
 from event_plugins import factory
 from event_plugins.common.status import DBStatus
@@ -41,8 +41,8 @@ class EventMessage(Base):
     source_type = Column(String(32), nullable=False)
     frequency = Column(String(4), nullable=False)
     last_receive = Column(String)
-    last_receive_time = Column(DateTime(timezone=True))
-    timeout = Column(DateTime(timezone=True))
+    last_receive_time = Column(UtcDateTime)
+    timeout = Column(UtcDateTime)
 
     # available options for fields
     available_frequency = ['D', 'M']
@@ -224,29 +224,34 @@ class EventMessageCRUD:
             Since monthly messages might received more that once within a month
             This function should be invoked after consuming source messages.
             Args:
-                received_msgs(list of messages in json format):
+                received_msgs(list of messages in json format dict):
                     messages that received and match from source
             Returns:
                 json object list of messages that have received
         '''
-        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        successed_msgs = [json.loads(r.msg) for r in records if r.last_receive_time is not None \
-                                                and r.last_receive_time < r.timeout]
-        successed_but_not_receive = list()
-        for successed in successed_msgs:
-            if successed not in received_msgs:
-                successed_but_not_receive.append(successed)
-        return successed_but_not_receive
+        str_received_msgs = map(get_string_if_json, received_msgs)
+        return map(lambda v: json.loads(v.msg),
+            self.session.query(EventMessage).filter(
+                and_(
+                    EventMessage.name == self.sensor_name,
+                    EventMessage.last_receive_time < EventMessage.timeout,
+                    EventMessage.msg.notin_(str_received_msgs)
+                )).all()
+        )
 
     @db_commit
     def update_on_receive(self, match_wanted, receive_msg):
         ''' Update last receive time and object when receiving wanted message '''
         str_match_wanted = get_string_if_json(match_wanted)
-        records = self.session.query(EventMessage).filter(EventMessage.name == self.sensor_name)
-        for record in records:
-            if record.msg == str_match_wanted:
-                record.last_receive_time = TimeUtils().get_now()
-                record.last_receive = get_string_if_json(receive_msg)
+        self.session.query(EventMessage).filter(
+            and_(
+                EventMessage.name == self.sensor_name,
+                EventMessage.msg == str_match_wanted
+            )
+        ).update({
+            "last_receive_time": TimeUtils().get_now(),
+            "last_receive": get_string_if_json(receive_msg)
+        })
 
     @db_commit
     def delete(self):

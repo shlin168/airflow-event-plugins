@@ -2,8 +2,9 @@
 import os
 import pytest
 
-from event_plugins.common.schedule.time_utils import TimeUtils
-from event_plugins.common.storage.db import STORAGE_CONF
+from event_plugins.common.schedule.time_utils import TimeUtils, AIRFLOW_EVENT_PLUGINS_TIMEZONE
+from event_plugins.common.storage.db import STORAGE_CONF, get_session
+from event_plugins.common.storage.event_message import EventMessage
 
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseConsumerOperator
 from test_event_plugins.test_base.mocks_base_consumer_plugin import MockBaseHandler
@@ -25,6 +26,12 @@ class TestBaseConsumerOperator:
             1. Most of base class are interace, we implemented mocks class in mocks_base_plugin.py
             2. Task time out and reschedule in execute() is not included here.
     '''
+    def teardown_method(self, method):
+        session = get_session()
+        session.query(EventMessage).delete()
+        session.commit()
+        session.close()
+
     def test_poke_all_D_messages(self, mocker):
         ######################
         #  prepare for test  #
@@ -55,8 +62,8 @@ class TestBaseConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/07  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 7, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         # Initializing connection is set in execute function,
         # but need to invoke here for poke to work
@@ -77,14 +84,13 @@ class TestBaseConsumerOperator:
         ##############################################
         mocker.patch.object(MockBaseConnector, 'get_messages', return_value=['taskC'])
         is_criteria_met = operator.poke(context=None, consumer=consumer)
-        print operator.db_handler.tabulate_data()
         assert is_criteria_met == True
 
         ###############################
         #  [Time Changed] 2019/07/08  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 8, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 8, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ##################################################
         #  situation: received taskC (NOT_ALL_RECEIVED)  #
@@ -132,8 +138,8 @@ class TestBaseConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/07  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 7, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 7, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         # Initializing connection is set in execute function,
         # but need to invoke here for poke to work
@@ -152,8 +158,8 @@ class TestBaseConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/08  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 8, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 8, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 8, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         #####################################################
         #  situation: received taskD(M) (NOT_ALL_RECEIVED)  #
@@ -168,8 +174,8 @@ class TestBaseConsumerOperator:
         ###############################
         #  [Time Changed] 2019/07/09  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 7, 9, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 9, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 7, 9, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 7, 9, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ###########################################################
         #  situation: received taskA(D), taskB(D) (ALL_RECEIVED)  #
@@ -183,8 +189,8 @@ class TestBaseConsumerOperator:
         ###############################
         #  [Time Changed] 2019/08/01  #
         ###############################
-        patch_now(mocker, TimeUtils().datetime(2019, 8, 1, 8, 0, 0))
-        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 8, 1, 8, 0, 0)
+        patch_now(mocker, TimeUtils().datetime(2019, 8, 1, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE))
+        assert TimeUtils().get_now() == TimeUtils().datetime(2019, 8, 1, 8, 0, 0, tzinfo=AIRFLOW_EVENT_PLUGINS_TIMEZONE)
 
         ###############################################################
         #  situation: received taskA(D), taskB(D) (NOT_ALL_RECEIVED)  #
